@@ -9,11 +9,15 @@ on:
 jobs:
   notify-bot-hosting:
     runs-on: ubuntu-latest
-    if: ${{ secrets.BOT_HOSTING_WEBHOOK_URL != '' }}
 
     steps:
-      - name: Trigger BotHosting webhook
-        run: |
-          curl -X POST "$BOT_HOSTING_WEBHOOK_URL"
+      - name: Trigger BotHosting webhook when configured
         env:
           BOT_HOSTING_WEBHOOK_URL: ${{ secrets.BOT_HOSTING_WEBHOOK_URL }}
+        run: |
+          if [ -z "$BOT_HOSTING_WEBHOOK_URL" ]; then
+            echo "BOT_HOSTING_WEBHOOK_URL is not configured yet. Skipping deploy trigger."
+            exit 0
+          fi
+
+          curl -X POST "$BOT_HOSTING_WEBHOOK_URL"
