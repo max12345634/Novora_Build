@@ -13,6 +13,7 @@ async function main() {
     intents: [
       GatewayIntentBits.Guilds,
       GatewayIntentBits.GuildMembers,
+      GatewayIntentBits.GuildModeration,
       GatewayIntentBits.GuildMessages,
       GatewayIntentBits.GuildVoiceStates,
       GatewayIntentBits.MessageContent
@@ -21,10 +22,8 @@ async function main() {
   });
 
   client.commands = new Collection();
-
   await loadCommands(client);
   await loadEvents(client);
-
   await client.login(token);
 }
 

@@ -5,37 +5,37 @@ Node.js Discord-Bot mit discord.js fuer Novora und Shadow RP.
 ## Funktionen
 
 - `/ping` und `/status`
-- Verify-Panel: `/setup verify`
-- Welcome und Leave mit eigenen Embeds: `/setup welcome`, `/setup leave`
-- News mit festem Zielkanal: `/setup news`, danach `/news`
-- Freie Embed-Nachricht: `/nachricht`
-- Servereinstellungen bleiben ausserhalb von GitHub; keine echten Secrets im Repository
+- Verify-Panel: `/setup verify` mit Bild-Captcha und Auswahl
+- Welcome/Leave mit eigenen Embeds und Platzhaltern
+- News mit festem Kanal: `/setup news`, danach `/news`
+- Eigene Embed-Nachricht: `/nachricht`
+- Bestellformular mit privatem Ticket: `/setup bestellung`
+- Server-Logs: `/setup logs`
+- Servereinstellungen liegen ausserhalb von GitHub. Keine echten Secrets im Repository.
 
 ## Welcome und Leave
 
-Beim Einrichten kannst du Titel, Text, Kanal, grosses Bild, Miniatur, Footer-Text, Footerbild und Farbe angeben. Das Footerbild wird als separates Bild direkt unter dem Embed gesendet.
+Mit `/setup welcome` und `/setup leave` werden Kanal, Titel, Text, Hauptbild, Miniatur, Footertext, Footerbild und Farbe eingerichtet. Platzhalter: `%SERVERNAME%`, `%USERNAME%`, `%MENTION%`, `%TOTALUSERCOUNT%`.
 
-Verfuegbare Platzhalter: `%SERVERNAME%`, `%USERNAME%`, `%MENTION%`, `%TOTALUSERCOUNT%`, `%USERCOUNT%`, `%BOTCOUNT%`.
+## Bestell-Tickets
 
-Beispiel fuer den Willkommenstext:
+Richte `/setup bestellung` mit Panel-Kanal und Teamrolle ein. Kategorie und Ticket-Logkanal sind optional. Nutzer beantworten ein Formular zu Servername, Zweck, Plattform und gewuenschtem Umfang. Novora erstellt danach einen privaten Ticket-Kanal mit den Antworten und einer Schliessen-Schaltflaeche.
 
-```text
-Hey %MENTION%, schoen, dass du da bist! Du bist Mitglied Nummer %TOTALUSERCOUNT%.
-```
+Der Bot benoetigt **Kanaele verwalten**, **Kanaele ansehen**, **Nachrichten senden**, **Nachrichtenverlauf ansehen** und **Einbettungen senden**. Die Teamrolle muss oberhalb der Bot-Rolle stehen. Der Logkanal sollte nur fuer das Team sichtbar sein.
 
-Join- und Leave-Nachrichten benoetigen den **Server Members Intent**. Schalte ihn im Discord Developer Portal unter **Bot → Privileged Gateway Intents → Server Members Intent** ein.
+## Server-Logs
 
-## News und Embed-Nachrichten
+`/setup logs kanal:#server-logs` aktiviert Protokolle fuer Nachrichtenbearbeitungen/-loeschungen, Beitritte/Verlaesse, Voice-Wechsel, Bans, Rollen- und Kanaelerstellungen/-aenderungen. Nachrichteninhalte koennen dabei im Log erscheinen. Gib nur vertrauenswuerdigen Teammitgliedern Zugriff auf den Logkanal.
 
-Richte zuerst mit `/setup news` den News-Kanal und optional eine Ping-Rolle ein. Danach kann ein berechtigtes Teammitglied `/news` mit Titel, Nachricht und optionalen Bildern verwenden.
+Im Discord Developer Portal unter **Bot → Privileged Gateway Intents** muessen fuer diese Funktionen **Server Members Intent** und **Message Content Intent** eingeschaltet sein. Danach den Bot neu starten.
 
-Mit `/nachricht` kannst du eine eigene Nachricht mit Titel, Text, Bild, Miniatur, Footer, Footerbild und Farbe in einen ausgewaehlten Kanal senden.
+## News und Embed
+
+Richte zuerst `/setup news` mit einem Kanal und optionaler Ping-Rolle ein. Danach erstellt `/news` Ankuendigungen. `/nachricht` sendet ein eigenes Embed mit Titel, Text, Bildern, Footer und Farbe.
 
 ## Verify
 
-```text
-/setup verify kanal:#verify rolle:@Buerger entfernen:@Gast bild:https://... farbe:#5865F2
-```
+Beispiel: `/setup verify kanal:#verify rolle:@Buerger entfernen:@Gast`
 
 ## BotHosting.net
 
@@ -46,6 +46,6 @@ Mit `/nachricht` kannst du eine eigene Nachricht mit Titel, Text, Bild, Miniatur
 | Start Command | `npm start` |
 | Install Command | `npm install` |
 
-Der Discord-Token gehoert ausschliesslich in BotHosting Environment Variables, niemals in GitHub.
+Der Discord-Token gehoert ausschliesslich in BotHosting Environment Variables.
 
-Nach Code-Aenderungen Slash Commands mit `npm run deploy:commands` neu registrieren und den Bot neu starten.
+Nach Code-Aenderungen muessen Slash Commands mit `npm run deploy:commands` neu registriert und der Bot neu gestartet werden.
