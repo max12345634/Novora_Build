@@ -10,7 +10,10 @@ const requiredFiles = [
   'src/events/ready.js',
   'src/events/interactionCreate.js',
   'src/commands/general/ping.js',
-  'src/commands/general/status.js'
+  'src/commands/general/status.js',
+  'src/commands/setup/verify.js',
+  'src/features/verify.js',
+  'src/utils/guildSettings.js'
 ];
 
 let failed = false;
