@@ -9,10 +9,13 @@ const requiredFiles = [
   'src/loaders/events.js',
   'src/events/ready.js',
   'src/events/interactionCreate.js',
+  'src/events/guildMemberAdd.js',
+  'src/events/guildMemberRemove.js',
   'src/commands/general/ping.js',
   'src/commands/general/status.js',
   'src/commands/setup/verify.js',
   'src/features/verify.js',
+  'src/features/welcome.js',
   'src/utils/guildSettings.js'
 ];
 

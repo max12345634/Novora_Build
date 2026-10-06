@@ -1,61 +1,35 @@
 # Novora Build
 
-Grundstruktur fuer den spaeteren Novora / Shadow RP Discord Bot.
+Grundstruktur fuer den Novora / Shadow RP Discord Bot.
 
-## Was ist drin?
+## Was ist enthalten?
 
 - Node.js Bot mit `discord.js`
-- Slash Command Loader
-- Event Loader
-- Beispielcommands `/ping` und `/status`
+- Slash Commands `/ping` und `/status`
 - Verify Modul mit `/setup verify`
-- sichere Environment Variables ueber `.env`
-- BotHosting.net Startdateien
-- GitHub Actions Projektcheck
-- optionaler Deployment Webhook fuer spaetere Auto-Restarts
+- Welcome- und Leave-Embeds mit `/setup welcome` und `/setup leave`
+- Welcome-Platzhalter: `%SERVERNAME%`, `%USERNAME%`, `%MENTION%`, `%TOTALUSERCOUNT%`, `%USERCOUNT%`, `%BOTCOUNT%`
+- Sichere Environment Variables; keine echten Secrets in GitHub
+- BotHosting.net Startdatei `index.js`
+- GitHub Actions Projektcheck und optionaler Deployment Webhook
 
-## Verify Modul
+## Welcome und Leave einrichten
 
-Der erste Verify-Stand ist ohne KI und ohne extra Captcha-Abhaengigkeiten gebaut.
+In Discord `/setup welcome` oder `/setup leave` auswaehlen. Der Kanal ist erforderlich. Titel, Text, grosses Bild, Miniatur, Footertext, Footerbild und Farbe sind optional.
 
-Ablauf:
+Das Footerbild wird als eigenes Embed-Bild direkt unter der Nachricht angezeigt. Bild-URLs muessen direkt auf ein Bild zeigen.
 
-1. Team nutzt `/setup verify`.
-2. Der Bot sendet ein Verify Panel mit Embed und Button.
-3. Nutzer klickt auf `Verifizieren`.
-4. Der Bot zeigt einen zufaelligen Captcha-Code und ein Auswahlmenue.
-5. Richtige Auswahl: `Verifizierung erfolgreich`, Rolle wird gegeben, optionale alte Rolle wird entfernt.
-6. Falsche Auswahl: Fehlernachricht, danach Kick nach 5 Sekunden.
+Damit Join- und Leave-Events funktionieren, muss im Discord Developer Portal unter **Bot → Privileged Gateway Intents** der **Server Members Intent** eingeschaltet sein. Die Bot-Rolle braucht im Zielkanal **Kanal ansehen** und **Nachrichten senden**.
 
-Beispiel fuer die Einrichtung:
+## Verify einrichten
+
+Beispiel:
 
 ```text
 /setup verify kanal:#verify rolle:@Buerger entfernen:@Gast bild:https://... farbe:#5865F2
 ```
 
-Hinweis: Bilder werden aktuell per URL eingetragen. Galerie-/Dashboard-Upload bauen wir spaeter als eigenes Modul.
-
-## Wichtig: Secrets niemals in GitHub speichern
-
-Der echte Discord Bot Token gehoert nur in BotHosting.net als Environment Variable.
-
-Diese Werte brauchst du spaeter:
-
-```env
-BOT_TOKEN=dein_discord_bot_token
-CLIENT_ID=deine_discord_application_id
-GUILD_ID=deine_test_server_id
-```
-
-Optional fuer spaeteres Auto-Deployment:
-
-```env
-BOT_HOSTING_WEBHOOK_URL=https://...
-```
-
-## BotHosting.net Einstellungen
-
-Nutze diese Werte:
+## BotHosting.net
 
 | Einstellung | Wert |
 | --- | --- |
@@ -64,26 +38,14 @@ Nutze diese Werte:
 | Start Command | `npm start` |
 | Install Command | `npm install` |
 
-Bei BotHosting.net unter Environment Variables eintragen:
+Der echte Discord-Token gehoert nur in BotHosting Environment Variables. Er darf niemals ins GitHub-Repository.
 
-- `BOT_TOKEN`
-- `CLIENT_ID`
-- `GUILD_ID`
+## Nach Updates
 
-## Lokale Befehle
-
-```bash
-npm install
-npm run check
-npm start
-```
-
-Slash Commands neu hochladen:
+Slash Commands muessen nach einer Aenderung neu registriert werden:
 
 ```bash
 npm run deploy:commands
 ```
 
-## Aktueller Stand
-
-Die Basis und Verify sind drin. Welcome/Leave, Nachrichten/Embed Maker, News, Bestellsystem, Logs, Moderation, Voice Support, Bewerbungen und Duty-System bauen wir Schritt fuer Schritt dazu.
+Dann den Bot bei BotHosting.net neu starten.
