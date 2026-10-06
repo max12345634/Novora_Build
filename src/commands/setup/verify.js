@@ -5,12 +5,12 @@ const { updateGuildSettings } = require('../../utils/guildSettings');
 function addMessageOptions(subcommand) {
   return subcommand
     .addChannelOption((option) => option.setName('kanal').setDescription('Kanal fuer diese Nachricht.').addChannelTypes(ChannelType.GuildText).setRequired(true))
-    .addStringOption((option) => option.setName('titel').setDescription('Titel des Embeds.'))
-    .addStringOption((option) => option.setName('text').setDescription('Text des Embeds.'))
-    .addStringOption((option) => option.setName('bild').setDescription('Grosse Bild-URL.'))
-    .addStringOption((option) => option.setName('miniatur').setDescription('Kleine Bild-URL oben rechts.'))
-    .addStringOption((option) => option.setName('footer').setDescription('Kleiner Text unten.'))
-    .addStringOption((option) => option.setName('footerbild').setDescription('Optionales Banner unter dem Embed.'))
+    .addStringOption((option) => option.setName('titel').setDescription('Titel des Embeds.').setMaxLength(256))
+    .addStringOption((option) => option.setName('text').setDescription('Text des Embeds.').setMaxLength(4096))
+    .addStringOption((option) => option.setName('bild').setDescription('Grosse Bild-URL.').setMaxLength(512))
+    .addStringOption((option) => option.setName('miniatur').setDescription('Kleine Bild-URL oben rechts.').setMaxLength(512))
+    .addStringOption((option) => option.setName('footer').setDescription('Kleiner Text unten.').setMaxLength(2048))
+    .addStringOption((option) => option.setName('footerbild').setDescription('Optionales Banner unter dem Embed.').setMaxLength(512))
     .addStringOption((option) => option.setName('farbe').setDescription('Hex-Farbe, z. B. #5865F2.'));
 }
 
@@ -41,12 +41,25 @@ module.exports = {
       .addChannelOption((option) => option.setName('kanal').setDescription('Kanal fuer das Verify Panel.').addChannelTypes(ChannelType.GuildText).setRequired(true))
       .addRoleOption((option) => option.setName('rolle').setDescription('Rolle nach erfolgreicher Verifizierung.').setRequired(true))
       .addRoleOption((option) => option.setName('entfernen').setDescription('Optionale Rolle, die danach entfernt wird.'))
-      .addStringOption((option) => option.setName('bild').setDescription('Optionale Bild-URL fuer das Panel.'))
+      .addStringOption((option) => option.setName('bild').setDescription('Optionale Bild-URL fuer das Panel.').setMaxLength(512))
       .addStringOption((option) => option.setName('farbe').setDescription('Embed-Farbe als Hex, z. B. #5865F2.')))
     .addSubcommand((subcommand) => addMessageOptions(subcommand.setName('welcome').setDescription('Richtet die Willkommensnachricht ein.')))
-    .addSubcommand((subcommand) => addMessageOptions(subcommand.setName('leave').setDescription('Richtet die Leave-Nachricht ein.'))),
+    .addSubcommand((subcommand) => addMessageOptions(subcommand.setName('leave').setDescription('Richtet die Leave-Nachricht ein.')))
+    .addSubcommand((subcommand) => subcommand
+      .setName('news')
+      .setDescription('Legt den Zielkanal und die optionale Ping-Rolle fuer /news fest.')
+      .addChannelOption((option) => option.setName('kanal').setDescription('Zielkanal fuer Ankuendigungen.').addChannelTypes(ChannelType.GuildText).setRequired(true))
+      .addRoleOption((option) => option.setName('rolle').setDescription('Optionale Rolle, die bei News benachrichtigt wird.'))),
   async execute(interaction) {
     const mode = interaction.options.getSubcommand();
+
+    if (mode === 'news') {
+      const channel = interaction.options.getChannel('kanal', true);
+      const role = interaction.options.getRole('rolle');
+      await updateGuildSettings(interaction.guildId, { news: { enabled: true, channelId: channel.id, roleId: role?.id || null } });
+      await interaction.reply({ content: 'News werden ab jetzt in ' + channel + ' gesendet.', ephemeral: true });
+      return;
+    }
 
     if (mode === 'verify') {
       const channel = interaction.options.getChannel('kanal', true);

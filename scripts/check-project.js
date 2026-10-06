@@ -13,29 +13,24 @@ const requiredFiles = [
   'src/events/guildMemberRemove.js',
   'src/commands/general/ping.js',
   'src/commands/general/status.js',
+  'src/commands/general/news.js',
+  'src/commands/general/nachricht.js',
   'src/commands/setup/verify.js',
   'src/features/verify.js',
   'src/features/welcome.js',
+  'src/features/embeds.js',
   'src/utils/guildSettings.js'
 ];
 
 let failed = false;
-
 for (const file of requiredFiles) {
-  const fullPath = path.join(process.cwd(), file);
-
-  if (!fs.existsSync(fullPath)) {
-    console.error(`Fehlt: ${file}`);
+  if (!fs.existsSync(path.join(process.cwd(), file))) {
+    console.error('Fehlt: ' + file);
     failed = true;
   }
 }
-
 if (fs.existsSync(path.join(process.cwd(), '.env'))) {
   console.warn('Hinweis: .env existiert lokal. Das ist okay, solange sie nicht in GitHub landet.');
 }
-
-if (failed) {
-  process.exit(1);
-}
-
+if (failed) process.exit(1);
 console.log('Novora Projektcheck erfolgreich.');

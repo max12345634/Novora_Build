@@ -1,29 +1,37 @@
 # Novora Build
 
-Grundstruktur fuer den Novora / Shadow RP Discord Bot.
+Node.js Discord-Bot mit discord.js fuer Novora und Shadow RP.
 
-## Was ist enthalten?
+## Funktionen
 
-- Node.js Bot mit `discord.js`
-- Slash Commands `/ping` und `/status`
-- Verify Modul mit `/setup verify`
-- Welcome- und Leave-Embeds mit `/setup welcome` und `/setup leave`
-- Welcome-Platzhalter: `%SERVERNAME%`, `%USERNAME%`, `%MENTION%`, `%TOTALUSERCOUNT%`, `%USERCOUNT%`, `%BOTCOUNT%`
-- Sichere Environment Variables; keine echten Secrets in GitHub
-- BotHosting.net Startdatei `index.js`
-- GitHub Actions Projektcheck und optionaler Deployment Webhook
+- `/ping` und `/status`
+- Verify-Panel: `/setup verify`
+- Welcome und Leave mit eigenen Embeds: `/setup welcome`, `/setup leave`
+- News mit festem Zielkanal: `/setup news`, danach `/news`
+- Freie Embed-Nachricht: `/nachricht`
+- Servereinstellungen bleiben ausserhalb von GitHub; keine echten Secrets im Repository
 
-## Welcome und Leave einrichten
+## Welcome und Leave
 
-In Discord `/setup welcome` oder `/setup leave` auswaehlen. Der Kanal ist erforderlich. Titel, Text, grosses Bild, Miniatur, Footertext, Footerbild und Farbe sind optional.
+Beim Einrichten kannst du Titel, Text, Kanal, grosses Bild, Miniatur, Footer-Text, Footerbild und Farbe angeben. Das Footerbild wird als separates Bild direkt unter dem Embed gesendet.
 
-Das Footerbild wird als eigenes Embed-Bild direkt unter der Nachricht angezeigt. Bild-URLs muessen direkt auf ein Bild zeigen.
+Verfuegbare Platzhalter: `%SERVERNAME%`, `%USERNAME%`, `%MENTION%`, `%TOTALUSERCOUNT%`, `%USERCOUNT%`, `%BOTCOUNT%`.
 
-Damit Join- und Leave-Events funktionieren, muss im Discord Developer Portal unter **Bot → Privileged Gateway Intents** der **Server Members Intent** eingeschaltet sein. Die Bot-Rolle braucht im Zielkanal **Kanal ansehen** und **Nachrichten senden**.
+Beispiel fuer den Willkommenstext:
 
-## Verify einrichten
+```text
+Hey %MENTION%, schoen, dass du da bist! Du bist Mitglied Nummer %TOTALUSERCOUNT%.
+```
 
-Beispiel:
+Join- und Leave-Nachrichten benoetigen den **Server Members Intent**. Schalte ihn im Discord Developer Portal unter **Bot → Privileged Gateway Intents → Server Members Intent** ein.
+
+## News und Embed-Nachrichten
+
+Richte zuerst mit `/setup news` den News-Kanal und optional eine Ping-Rolle ein. Danach kann ein berechtigtes Teammitglied `/news` mit Titel, Nachricht und optionalen Bildern verwenden.
+
+Mit `/nachricht` kannst du eine eigene Nachricht mit Titel, Text, Bild, Miniatur, Footer, Footerbild und Farbe in einen ausgewaehlten Kanal senden.
+
+## Verify
 
 ```text
 /setup verify kanal:#verify rolle:@Buerger entfernen:@Gast bild:https://... farbe:#5865F2
@@ -38,14 +46,6 @@ Beispiel:
 | Start Command | `npm start` |
 | Install Command | `npm install` |
 
-Der echte Discord-Token gehoert nur in BotHosting Environment Variables. Er darf niemals ins GitHub-Repository.
+Der Discord-Token gehoert ausschliesslich in BotHosting Environment Variables, niemals in GitHub.
 
-## Nach Updates
-
-Slash Commands muessen nach einer Aenderung neu registriert werden:
-
-```bash
-npm run deploy:commands
-```
-
-Dann den Bot bei BotHosting.net neu starten.
+Nach Code-Aenderungen Slash Commands mit `npm run deploy:commands` neu registrieren und den Bot neu starten.
