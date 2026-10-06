@@ -10,3 +10,4 @@ pnpm-debug.log*
 coverage/
 dist/
 build/
+data/
