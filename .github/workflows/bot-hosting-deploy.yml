@@ -1,0 +1,19 @@
+name: Optional BotHosting Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  notify-bot-hosting:
+    runs-on: ubuntu-latest
+    if: ${{ secrets.BOT_HOSTING_WEBHOOK_URL != '' }}
+
+    steps:
+      - name: Trigger BotHosting webhook
+        run: |
+          curl -X POST "$BOT_HOSTING_WEBHOOK_URL"
+        env:
+          BOT_HOSTING_WEBHOOK_URL: ${{ secrets.BOT_HOSTING_WEBHOOK_URL }}
