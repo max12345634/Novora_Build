@@ -11,7 +11,12 @@ Node.js Discord-Bot mit discord.js fuer Novora und Shadow RP.
 - Eigene Embed-Nachricht: `/nachricht`
 - Bestellformular mit privatem Ticket: `/setup bestellung`
 - Server-Logs: `/setup logs`
+- Moderation: `/moderation warn|kick|ban|timeout`
 - Servereinstellungen liegen ausserhalb von GitHub. Keine echten Secrets im Repository.
+
+## Moderation
+
+`/moderation warn` vermerkt eine Verwarnung im eingerichteten Server-Log. `kick`, `ban` und `timeout` fuehren die jeweilige Discord-Aktion aus. Discord-Berechtigungen und Rollen-Hierarchie werden geprueft. Der Bot braucht die passenden Rechte (Mitglieder kicken, Mitglieder bannen, Mitglieder moderieren). Warnungen werden derzeit nicht als separate Datenbankeintraege gespeichert; richte `/setup logs` ein, damit sie dauerhaft im privaten Log-Kanal stehen.
 
 ## Welcome und Leave
 

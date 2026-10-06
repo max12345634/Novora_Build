@@ -16,7 +16,7 @@ const requiredFiles = [
   'src/events/channelCreate.js', 'src/events/channelDelete.js', 'src/events/channelUpdate.js',
   'src/events/roleCreate.js', 'src/events/roleDelete.js', 'src/events/roleUpdate.js',
   'src/commands/general/ping.js', 'src/commands/general/status.js',
-  'src/commands/general/news.js', 'src/commands/general/nachricht.js',
+  'src/commands/general/news.js', 'src/commands/moderation/moderation.js', 'src/commands/general/nachricht.js',
   'src/commands/setup/verify.js', 'src/features/verify.js',
   'src/features/welcome.js', 'src/features/embeds.js', 'src/features/orders.js',
   'src/utils/auditLog.js', 'src/utils/guildSettings.js'
