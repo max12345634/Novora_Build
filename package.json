@@ -1,0 +1,26 @@
+{
+  "name": "novora-build",
+  "version": "0.1.0",
+  "description": "Novora / Shadow RP Discord bot foundation.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "deploy:commands": "node scripts/deploy-commands.js",
+    "check": "node scripts/check-project.js"
+  },
+  "engines": {
+    "node": ">=18.17.0"
+  },
+  "keywords": [
+    "discord",
+    "discord.js",
+    "novora",
+    "shadow-rp"
+  ],
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5"
+  }
+}
