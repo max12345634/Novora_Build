@@ -4,6 +4,8 @@ const {
 } = require('discord.js');
 const { getGuildSettings } = require('../utils/guildSettings');
 const { sendLog } = require('../utils/auditLog');
+const fs = require('node:fs/promises');
+const path = require('node:path');
 
 const PANEL_ID = 'ticket:category';
 const MODAL_PREFIX = 'ticket:form:';
@@ -29,7 +31,8 @@ function controls(claimed = false) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('ticket:close').setLabel('Schließen').setEmoji('❌').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('ticket:claim').setLabel(claimed ? 'Übernommen' : 'Übernehmen').setEmoji('✅').setStyle(ButtonStyle.Success).setDisabled(claimed),
-    new ButtonBuilder().setCustomId('ticket:close-request').setLabel('Schließungs-Anfrage').setEmoji('❓').setStyle(ButtonStyle.Secondary)
+    new ButtonBuilder().setCustomId('ticket:close-request').setLabel('Schließungs-Anfrage').setEmoji('❓').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('ticket:transcript').setLabel('Transcript').setEmoji('📄').setStyle(ButtonStyle.Secondary)
   );
 }
 async function sendTicketPanel(channel, guild) {
@@ -124,6 +127,31 @@ async function handleTicketInteraction(interaction) {
     await interaction.channel.setTopic(topicFor(ticket));
     await interaction.message.edit({ components: [controls(true)] });
     await interaction.reply({ embeds: [new EmbedBuilder().setColor(0x57f287).setDescription('✅ Ticket wurde von <@' + interaction.user.id + '> übernommen.')] });
+    return true;
+  }
+  if (interaction.customId === 'ticket:transcript') {
+    if (!isTeam(interaction, config) && interaction.user.id !== ticket.requesterId) {
+      await interaction.reply({ content: 'Du kannst für dieses Ticket kein Transcript erstellen.', ephemeral: true });
+      return true;
+    }
+    await interaction.deferReply({ ephemeral: true });
+    const messages = [];
+    let before;
+    while (messages.length < 500) {
+      const batch = await interaction.channel.messages.fetch({ limit: 100, before }).catch(() => null);
+      if (!batch?.size) break;
+      messages.push(...batch.values());
+      before = batch.last().id;
+      if (batch.size < 100) break;
+    }
+    messages.sort((a,b) => a.createdTimestamp - b.createdTimestamp);
+    const lines = messages.map(m => '[' + new Date(m.createdTimestamp).toISOString() + '] ' + (m.author?.tag || 'Unbekannt') + ': ' + (m.cleanContent || '[Embed/Anhang]'));
+    const dir = path.join(process.cwd(), 'data', 'transcripts');
+    await fs.mkdir(dir, { recursive: true });
+    const file = path.join(dir, ticket.caseId + '.txt');
+    await fs.writeFile(file, lines.join('\n'), 'utf8');
+    await interaction.editReply({ content: '📄 Transcript für **#' + ticket.caseId + '**:', files: [file] });
+    await sendLog(interaction.guild, 'Ticket Transcript', 'Case: #' + ticket.caseId + '\nErstellt von: <@' + interaction.user.id + '>', config.logChannelId);
     return true;
   }
   if (interaction.customId === 'ticket:close-request') {
