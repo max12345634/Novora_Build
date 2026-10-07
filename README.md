@@ -54,3 +54,25 @@ Beispiel: `/setup verify kanal:#verify rolle:@Buerger entfernen:@Gast`
 Der Discord-Token gehoert ausschliesslich in BotHosting Environment Variables.
 
 Nach Code-Aenderungen muessen Slash Commands mit `npm run deploy:commands` neu registriert und der Bot neu gestartet werden.
+
+## Novora v0.3: Geführtes Setup
+
+`/setup` öffnet die Serververwaltung. Ticket-Einrichtung: Servertyp suchen, Server beschreiben, regelbasierte Vorschläge übernehmen, Kategorien bearbeiten, Kanal/Rolle festlegen und Vorschau prüfen. Die 116 Servertypen werden in 25er-Seiten gefiltert. Die Vorschläge sind editierbare Daten, keine externen KI-Aufrufe. Nach dem Aktivieren wird das bestehende Panel bei Änderungen aktualisiert. Für mehrere Panels ist derzeit ein Panel pro Server vorgesehen.
+
+Unter Branding lassen sich Projektname, Farben, Logo, Banner, Thumbnail und grafisches Footer-Bild mit direkten HTTPS-Bild-URLs setzen. Discord unterstützt pro Embed ein großes Bild; Novora zeigt das grafische Footer-Bild in einem zweiten Embed an. Bot-Name und Bio können im vorhandenen `/branding` Command geändert werden, Profilbild und Bot-Banner als Discord-Anhänge. Das ist eine Discord-Profiländerung, keine Panel-URL.
+
+Bewerbungstypen werden in `/setup → Bewerbungen → Bearbeiten` hinzugefügt. Eine Frage je Zeile, bis zu 20 Fragen; die Formulare öffnen sich in mehreren Schritten mit höchstens fünf Eingaben pro Modal. Typen lassen sich in der JSON-Konfiguration individuell mit `roleId`, `parentId`, `logChannelId`, `imageUrl` und `enabled` versehen. Tickets verwenden das gleiche Fragenformat pro Kategorie. Für komplexere Datenfelder, beispielsweise Ping-Rollen und Cooldowns, ist derzeit die JSON-Konfiguration erforderlich.
+
+### KI und Daten
+
+Ohne Provider arbeitet Novora mit Presets, Schlüsselwörtern und der pro Server hinterlegten FAQ. `/setup → KI` pflegt Beschreibung, FAQ (`Frage|Antwort` je Zeile), Links und Stil. Über „Antwortmodus“ gibt es automatische Antworten im Ticket oder Staff-Vorschläge. Sensible Entscheidungen werden an das Team übergeben. Für einen optionalen OpenAI-kompatiblen HTTPS-Chat-Endpunkt: `NOVORA_AI_ENDPOINT`, `NOVORA_AI_API_KEY`, `NOVORA_AI_MODEL` ausschließlich als BotHosting Environment Variables setzen. Pro Anfrage werden nur Wissen und Ticketdaten desselben Discord-Servers übertragen. Für automatische Ticketantworten wird der **Message Content Intent** benötigt.
+
+`data/guild-settings.json` bleibt auf dem Hosting-Server und ist nicht in Git. Beim Laden werden ältere Einstellungen auf Schema 2 ergänzt, ohne sie sofort neu zu schreiben. Schreibvorgänge werden seriell und atomar ausgeführt. Bitte das `data/`-Verzeichnis vor einem Hosting-Wechsel sichern; keine Token in die JSON-Datei schreiben.
+
+Für mehrere Server `GUILD_ID` in der BotHosting-Umgebung entfernen. Novora registriert Slash Commands dann global; deren Sichtbarkeit kann nach Discord-Änderungen etwas verzögert sein. Mit `GUILD_ID` bleiben die Commands auf diesen Testserver beschränkt. Bestehende Installationen mit `GUILD_ID` laufen unverändert weiter.
+
+### Rechte und Grenzen
+
+Der Bot benötigt `Kanäle verwalten`, `Kanal ansehen`, `Nachrichten senden`, `Links einbetten`, `Nachrichtenverlauf lesen` und für Verify `Rollen verwalten`; seine Rolle muss über der Verify-Rolle stehen. `Audit-Log ansehen` ergänzt bei bestimmten Ereignissen einen wahrscheinlichen Akteur. Für Timeout/Kick sind `Mitglieder moderieren`/`Mitglieder kicken` nötig. Transcripts lesen bis zu 2000 Nachrichten und enthalten HTML und Text; Anhänge werden als Links dokumentiert. Uploads über Discords Größenlimit können im Log scheitern, die Schließung bleibt bestehen. Captcha-Challenges und noch nicht abgeschlossene mehrseitige Formulare sind bewusst kurzlebig und starten nach einem Bot-Neustart neu.
+
+GitHub Actions prüft auf PR und Branch `codex/**` die Befehle, Events, Presets, Komponenten und JS-Syntax. Der BotHosting-Deploy-Workflow löst nur bei Push auf `main` aus und nur wenn `BOT_HOSTING_WEBHOOK_URL` als GitHub Secret eingerichtet ist. Ein PR-Build veröffentlicht keine neue Bot-Version.

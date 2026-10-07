@@ -14,11 +14,10 @@ async function loadEvents(client) {
       continue;
     }
 
-    if (event.once) {
-      client.once(event.name, (...args) => event.execute(...args));
-    } else {
-      client.on(event.name, (...args) => event.execute(...args));
-    }
+    const invoke = (...args) => Promise.resolve().then(() => event.execute(...args))
+      .catch((error) => logger.error(`Event ${event.name} fehlgeschlagen.`, error));
+    if (event.once) client.once(event.name, invoke);
+    else client.on(event.name, invoke);
   }
 
   logger.info(`${eventFiles.length} Eventdateien geladen.`);
