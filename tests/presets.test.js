@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { SERVER_TYPES, suggest } = require('../src/features/presets');
-const { fallback, sensitive } = require('../src/features/ai');
+const { fallback, sensitive, isQuestion } = require('../src/features/ai');
 
 test('Presets combine server type and description without RP defaults for every server', () => {
   assert.ok(SERVER_TYPES.length >= 100);
@@ -18,4 +18,12 @@ test('FAQ remains guild scoped and sensitive questions require staff', () => {
   assert.match(fallback(a, 'Wo ist die Anleitung?'), /a\.example/);
   assert.match(fallback(b, 'Wo ist die Anleitung?'), /b\.example/);
   assert.ok(sensitive('Beschwerde gegen Teammitglied'));
+});
+
+test('FAQ matching accepts close wording but refuses unrelated questions', () => {
+  const settings = { ai: { faq: [{ q: 'Wie bewerbe ich mich als Supporter?', a: 'Öffne das Bewerbungs-Panel.' }] } };
+  assert.equal(fallback(settings, 'Wie kann ich mich als Supporter bewerben?'), 'Öffne das Bewerbungs-Panel.');
+  assert.match(fallback(settings, 'Wie ist das Wetter morgen?'), /keine sichere Antwort/);
+  assert.equal(isQuestion('Hallo zusammen!'), false);
+  assert.equal(isQuestion('Wo finde ich das Regelwerk'), true);
 });

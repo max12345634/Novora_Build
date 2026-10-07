@@ -5,12 +5,17 @@ function panel(guild, settings, { title, description, imageUrl, thumbnailUrl, co
   const brand = settings.branding || {};
   const project = brand.projectName || guild.name;
   const sharedFooterText = String(brand.footerText || project).slice(0, 2048);
+  const serverIcon = typeof guild.iconURL === 'function' ? guild.iconURL({ extension: 'png', size: 64 }) : null;
   const embed = new EmbedBuilder()
     .setColor(parseColor(color || brand.primaryColor, 0x5865f2))
+    .setAuthor({ name: String(project).slice(0, 256), iconURL: validHttpUrl(brand.logoUrl) || serverIcon || undefined })
     .setTitle(String(title || project).slice(0, 256))
     .setDescription(String(description || ' ').slice(0, 4096))
     .setFooter({ text: sharedFooterText, iconURL: validHttpUrl(brand.logoUrl) || undefined });
-  let remaining = 5800 - String(title || project).length - String(description || ' ').slice(0, 4096).length - sharedFooterText.length;
+  // A consistent project header, accent stripe, compact field spacing and shared graphic footer
+  // reproduce the reference hierarchy while keeping every guild's branding configurable.
+  let remaining = 5800 - String(project).slice(0, 256).length - String(title || project).slice(0, 256).length
+    - String(description || ' ').slice(0, 4096).length - sharedFooterText.length;
   for (const field of fields.slice(0, 25)) {
     const name = String(field.name).slice(0, 256);
     if (remaining < name.length + 2) break;

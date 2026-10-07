@@ -14,7 +14,7 @@ const menuItems = [
   ['tickets', '🎫 Tickets', 'Kategorien, Formulare und Panel'], ['verify', '✅ Verify', 'Captcha und Rollen'],
   ['welcome', '👋 Welcome / Leave', 'Nachrichten beim Beitritt und Austritt'], ['logs', '📋 Logs', 'Ereignisse und Protokolle'],
   ['applications', '📝 Bewerbungen', 'Bewerbungstypen und Fragen'], ['branding', '🎨 Bot-Design', 'Name, Farben, Footer und Galerie-Bilder'],
-  ['ai', '🤖 KI', 'Wissensbasis und Ticket-Assistent']
+  ['ai', '🤖 KI', 'Wissensbasis, Tickets und Antwortkanal']
 ];
 const row = (...components) => new ActionRowBuilder().addComponents(components);
 const button = (id, label, style = ButtonStyle.Secondary) => new ButtonBuilder().setCustomId(`setup:${id}`).setLabel(label).setStyle(style);
@@ -36,17 +36,23 @@ function systemView(guild, s, section) {
     { name: 'Farbe', value: s.branding?.primaryColor || 'Standard', inline: true },
     { name: 'Footer auf allen Panels', value: s.branding?.footerText || s.branding?.projectName || guild.name },
     { name: 'Bilder-Speicher', value: s.branding?.assetChannelId ? `<#${s.branding.assetChannelId}>` : 'Noch nicht gewählt' }
-  ] : section === 'ai' ? [{ name: 'Modus', value: c.enabled ? (c.autoReply ? 'Automatische Antworten' : 'Nur Vorschläge') : 'Aus' },
-    { name: 'FAQ', value: String(c.faq?.length || 0) }] : [{ name: 'Status', value: c.enabled ? '✅ Aktiv' : '○ Inaktiv' }];
+  ] : section === 'ai' ? [{ name: 'KI allgemein', value: c.enabled ? (c.autoReply ? '✅ Aktiv' : '🟡 Nur Vorschläge') : '○ Aus', inline: true },
+    { name: 'Ticket-Hilfe', value: c.enabled && c.ticketEnabled ? '✅ Aktiv' : '○ Aus', inline: true },
+    { name: 'Antwortkanal', value: c.channelId ? `<#${c.channelId}> · ${c.enabled && c.channelEnabled ? '✅ aktiv' : '○ pausiert'}` : 'Kein Kanal ausgewählt', inline: true },
+    { name: 'Wissensbasis', value: `${c.faq?.length || 0} FAQ · ${c.links?.length || 0} Links` }] : [{ name: 'Status', value: c.enabled ? '✅ Aktiv' : '○ Inaktiv' }];
   const embeds = panel(guild, s, { title: menuItems.find(v => v[0] === section)?.[1] || section,
     description: section === 'branding'
       ? 'Hier legst du das gemeinsame Novora-Design fest. Footer-Text und Footer-Bild erscheinen automatisch auf allen Panels. Wähle zuerst einen privaten Textkanal als Bildspeicher.'
+      : section === 'ai' ? 'Wähle einen Textkanal für automatische Fragen-Antworten. Novora nutzt nur das Wissen dieses Servers und gibt unsichere oder sensible Fälle an das Team weiter.'
       : 'Konfiguriere die Einstellungen. Prüfe die Vorschau vor der Veröffentlichung.', fields });
   const components = [row(button(`edit:${section}`, 'Bearbeiten', ButtonStyle.Primary),
     button(`preview:${section}`, 'Vorschau'), button(`toggle:${section}`, c.enabled ? 'Deaktivieren' : 'Aktivieren', c.enabled ? ButtonStyle.Danger : ButtonStyle.Success),
     button(`design:${section}`, 'Farbe'), button(`reset:${section}`, 'Zurücksetzen', ButtonStyle.Danger)), back()];
   if (section === 'tickets') return ticketWizard(c, s, guild);
-  if (section === 'ai') components.splice(1, 0, row(button('ai-test', 'KI testen'), button('ai-options', 'Antwortmodus'), button('ai-analyze', 'Server analysieren')));
+  if (section === 'ai') components.splice(1, 0,
+    row(button('ai-test', 'KI testen'), button('ai-options', 'Ticket-Modus'), button('ai-channel-toggle', c.enabled && c.channelEnabled ? 'Kanal-KI pausieren' : 'Kanal-KI aktivieren', c.enabled && c.channelEnabled ? ButtonStyle.Danger : ButtonStyle.Success), button('ai-analyze', 'Server analysieren')),
+    row(new ChannelSelectMenuBuilder().setCustomId('setup:pick:ai:channelId').setPlaceholder('KI-Antwortkanal auswählen').addChannelTypes(ChannelType.GuildText)),
+    row(new RoleSelectMenuBuilder().setCustomId('setup:pick:ai:teamRoleId').setPlaceholder('Rolle für menschliche Übergaben (optional)').setMinValues(0)));
   if (section === 'branding') components.splice(1, 0, row(button('assets:branding', 'Bilder aus Galerie', ButtonStyle.Primary), button('brand-profile', 'Bot-Profil')),
     row(new ChannelSelectMenuBuilder().setCustomId('setup:pick:branding:assetChannelId').setPlaceholder('Privaten Bilder-Speicherkanal wählen').addChannelTypes(ChannelType.GuildText)));
   if (section === 'welcome') components.splice(1, 0, row(button('edit-leave', 'Leave gestalten'), button('assets:welcome', 'Welcome-Bild'), button('assets:leave', 'Leave-Bild'), button('preview:leave', 'Leave-Vorschau')));
@@ -135,10 +141,11 @@ function editModal(section, c = {}) {
     input('channelId', 'Welcome-Kanal ID', c.channelId, undefined, 20)]);
   if (section === 'applications') return modal('config:applications', 'Bewerbungstyp erstellen', [input('name', 'Name des Bewerbungstyps', '', undefined, 80, true),
     input('description', 'Beschreibung', '', TextInputStyle.Paragraph, 500), input('questions', 'Fragen (eine pro Zeile, maximal 20)', '', TextInputStyle.Paragraph, 1500)]);
-  if (section === 'ai') return modal('config:ai', 'KI-Wissensbasis', [input('description', 'Serverbeschreibung', c.description, TextInputStyle.Paragraph, 1500),
-    input('faq', 'FAQ: Frage|Antwort je Zeile', (c.faq || []).map(v => `${v.q}|${v.a}`).join('\n'), TextInputStyle.Paragraph, 2500),
+  if (section === 'ai') return modal('config:ai', 'KI-Wissensbasis', [input('description', 'Serverbeschreibung', c.description, TextInputStyle.Paragraph, 1000),
+    input('faq', 'FAQ: Frage|Antwort je Zeile', (c.faq || []).map(v => `${v.q}|${v.a}`).join('\n'), TextInputStyle.Paragraph, 1000),
+    input('knowledge', 'Weitere Infos / Regeln (freigegeben)', c.knowledge, TextInputStyle.Paragraph, 1000),
     input('style', 'Antwortstil', c.style || 'Freundlich und knapp', undefined, 100),
-    input('links', 'Wichtige Links (je Zeile)', (c.links || []).join('\n'), TextInputStyle.Paragraph, 1000)]);
+    input('links', 'Wichtige Links (je Zeile)', (c.links || []).join('\n'), TextInputStyle.Paragraph, 800)]);
   return modal('config:tickets', 'Ticket-Panel gestalten', [input('panelTitle', 'Panel-Titel', c.panelTitle),
     input('panelDescription', 'Panel-Beschreibung', c.panelDescription, TextInputStyle.Paragraph, 1500),
     input('panelColor', 'Panel-Farbe (#RRGGBB)', c.color, undefined, 7)]);
@@ -388,6 +395,9 @@ async function handleSetupInteraction(i) {
       input('channelId', 'Leave-Kanal ID', s.leave?.channelId, undefined, 20)])); return true; }
     if (action === 'ai-options') { const s = await getGuildSettings(i.guildId); await i.reply({ content: 'KI-Ticket-Assistent: Modus wählen', ephemeral: true,
       components: [row(button('ai-mode:auto', 'Automatische Antworten'), button('ai-mode:staff', 'Nur Staff-Vorschläge'), button('ai-mode:off', 'Aus'))] }); return true; }
+    if (action === 'ai-channel-toggle') { const s = await getGuildSettings(i.guildId);
+      if (!s.ai?.channelId) throw new Error('Wähle zuerst den KI-Antwortkanal aus.');
+      const next = await patch(i, 'ai', { channelEnabled: !(s.ai?.enabled && s.ai?.channelEnabled), enabled: true }); await view(i, 'ai', next); return true; }
     if (action === 'ai-analyze') { const s = await getGuildSettings(i.guildId), proposal = setupSuggestions(s);
       await i.reply({ embeds: panel(i.guild, s, { title: '🤖 Serveranalyse · Vorschlag',
         description: 'Novora nutzt deine Serverbeschreibung und regelbasierte Presets. Es wird noch nichts veröffentlicht.',
@@ -400,8 +410,8 @@ async function handleSetupInteraction(i) {
         applications: { ...old.applications, types: old.applications.types?.length ? old.applications.types : proposal.applications },
         logs: { ...old.logs, profile: old.logs.profile || proposal.logs } }));
       await i.update({ content: 'Vorschläge als Entwurf gespeichert. Prüfe Rollen/Kanäle und aktiviere die Systeme anschließend einzeln.', embeds: [], components: [] }); return true; }
-    if (action === 'ai-mode') { const mode = parts[2], s = await patch(i, 'ai', { enabled: mode !== 'off', ticketEnabled: mode !== 'off', autoReply: mode === 'auto' });
-      await i.update({ content: `KI-Modus: ${mode}`, components: [] }); return true; }
+    if (action === 'ai-mode') { const mode = parts[2], next = await patch(i, 'ai', { enabled: mode !== 'off', ticketEnabled: mode !== 'off', autoReply: mode === 'auto', ...(mode === 'off' ? { channelEnabled: false } : {}) });
+      await i.update(systemView(i.guild, next, 'ai')); return true; }
     if (action === 'branding' && i.isModalSubmit()) { const f = readFields(i);
       const s = await patch(i, 'branding', f); await i.reply({ ...systemView(i.guild, s, 'branding'), ephemeral: true }); return true; }
     if (action === 'config' && i.isModalSubmit()) {
@@ -414,7 +424,7 @@ async function handleSetupInteraction(i) {
         const type = { id, name: f.name, description: f.description,
           questions: f.questions.split('\n').map((label, n) => ({ id: `q${n + 1}`, label: label.trim().slice(0, 45) })).filter(q => q.label).slice(0, 20), enabled: true };
         await patch(i, section, { types: [...types.filter(v => v.id !== id), type] });
-      } else if (section === 'ai') await patch(i, section, { description: f.description, style: f.style,
+      } else if (section === 'ai') await patch(i, section, { description: f.description, knowledge: f.knowledge, style: f.style,
         faq: f.faq.split('\n').map(line => { const [q, ...a] = line.split('|'); return { q: q?.trim(), a: a.join('|').trim() }; }).filter(v => v.q && v.a).slice(0, 30),
         links: f.links.split('\n').map(v => v.trim()).filter(Boolean).slice(0, 30) });
       else await patch(i, section, section === 'welcome' || section === 'leave' ? { ...f, enabled: Boolean(f.channelId) } : f);
