@@ -155,10 +155,13 @@ async function activate(i, section, s) {
   const c = s[section] || {}, me = i.guild.members.me || await i.guild.members.fetchMe();
   if (section === 'tickets' || section === 'verify' || section === 'applications') {
     const channelId = section === 'verify' ? c.channelId : section === 'applications' ? c.channelId : c.panelChannelId;
+    if (!channelId) throw new Error('Bitte zuerst einen Panel-Kanal auswählen.');
     const channel = await i.guild.channels.fetch(channelId).catch(() => null);
     if (!channel?.isTextBased()) throw new Error('Der ausgewählte Panel-Kanal fehlt.');
     if (!channel.permissionsFor(me)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) throw new Error('Novora benötigt im Panel-Kanal Nachrichten senden und Links einbetten.');
-    const role = await i.guild.roles.fetch(section === 'verify' ? c.roleId : c.teamRoleId).catch(() => null);
+    const selectedRoleId = section === 'verify' ? c.roleId : c.teamRoleId;
+    if (!selectedRoleId) throw new Error('Bitte zuerst eine zuständige Rolle auswählen.');
+    const role = await i.guild.roles.fetch(selectedRoleId).catch(() => null);
     if (!role) throw new Error('Die ausgewählte Rolle fehlt.');
     if (section === 'verify' && (!me.permissions.has(PermissionFlagsBits.ManageRoles) || role.position >= me.roles.highest.position)) throw new Error('Novora benötigt Rollen verwalten und muss über der Verify-Rolle stehen.');
     if (section === 'verify' && c.removeRoleId) { const remove = await i.guild.roles.fetch(c.removeRoleId).catch(() => null);

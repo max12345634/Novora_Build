@@ -103,7 +103,8 @@ async function transcript(channel, t) {
   const plain = `${text}\n\n${lines.join('\n')}`;
   const html = `<!doctype html><html lang="de"><meta charset="utf-8"><title>Novora ${escapeHtml(t.caseId)}</title><style>body{background:#1e1f22;color:#ddd;font:16px system-ui;max-width:900px;margin:auto;padding:32px}.msg{border-bottom:1px solid #444;padding:12px}small{color:#aab}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style><h1>Ticket ${escapeHtml(t.caseId)}</h1><pre>${escapeHtml(text)}</pre>${messages.map(m => `<div class="msg"><b>${escapeHtml(m.author?.tag || 'Unbekannt')}</b> <small>${new Date(m.createdTimestamp).toISOString()}</small><pre>${escapeHtml(m.content || '')}</pre>${[...m.attachments.values()].map(a => `<a rel="noreferrer" href="${escapeHtml(a.url)}">${escapeHtml(a.name || 'Anhang')}</a>`).join(' ')}</div>`).join('')}</html>`;
   const stem = t.caseId.replace(/[^a-zA-Z0-9-]/g, '');
-  const files = [new AttachmentBuilder(Buffer.from(plain.slice(0, 6_000_000)), { name: `${stem}.txt` })];
+  const textBuffer = Buffer.from(plain);
+  const files = [new AttachmentBuilder(textBuffer.subarray(0, 7_000_000), { name: `${stem}.txt` })];
   if (Buffer.byteLength(html) < 7_000_000) files.unshift(new AttachmentBuilder(Buffer.from(html), { name: `${stem}.html` }));
   return files;
 }
@@ -158,14 +159,17 @@ async function handleTicketInteraction(i) {
     }
     await i.deferReply({ ephemeral: true }); drafts.delete(token);
     const roleId = cat.roleId || c.teamRoleId;
+    if (!/^\d{17,20}$/.test(roleId || '')) { await i.editReply('Die Supportrolle ist nicht konfiguriert. Informiere die Serververwaltung.'); return true; }
     const role = await i.guild.roles.fetch(roleId).catch(() => null);
     if (!role) { await i.editReply('Die Supportrolle wurde gelöscht. Informiere die Serververwaltung.'); return true; }
     const existing = Object.values(c.records || {}).filter(t => t.requesterId === i.user.id && t.categoryId === cat.id && t.state === 'open').length;
     if (existing >= (cat.maxOpen || c.maxOpen || 1)) { await i.editReply('Du hast bereits ein offenes Ticket.'); return true; }
     const ticket = { caseId: id(), requesterId: i.user.id, categoryId: cat.id, categoryName: cat.name, state: 'open', ownerId: null,
       createdAt: new Date().toISOString(), answers: draft.answers, priority: 'normal' };
+    const requestedParent = cat.parentId || c.categoryId;
+    const parent = requestedParent && await i.guild.channels.fetch(requestedParent).catch(() => null);
     const ch = await i.guild.channels.create({ name: `${safeName(cat.prefix || cat.id)}-${safeName(i.user.username)}-${ticket.caseId.slice(-4).toLowerCase()}`.slice(0, 90),
-      type: ChannelType.GuildText, parent: cat.parentId || c.categoryId || undefined,
+      type: ChannelType.GuildText, parent: parent?.type === ChannelType.GuildCategory ? parent.id : undefined,
       topic: `${TOPIC}${i.user.id}:${ticket.caseId}:open:none`, permissionOverwrites: [
         { id: i.guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
         { id: i.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
@@ -309,13 +313,17 @@ async function handleTicketInteraction(i) {
     const oldRole = cat?.roleId || c.teamRoleId, newRole = next.roleId || c.teamRoleId;
     if (oldRole !== newRole) { await i.channel.permissionOverwrites.edit(newRole, { ViewChannel: true, SendMessages: !c.exclusiveClaim || !t.ownerId, ReadMessageHistory: true });
       if (oldRole) await i.channel.permissionOverwrites.delete(oldRole).catch(() => {}); }
-    if (next.parentId || c.categoryId) await i.channel.setParent(next.parentId || c.categoryId, { lockPermissions: false });
+    const parentId = next.parentId || c.categoryId, parent = parentId && await i.guild.channels.fetch(parentId).catch(() => null);
+    if (parent?.type === ChannelType.GuildCategory) await i.channel.setParent(parent.id, { lockPermissions: false });
     t.categoryId = next.id; t.categoryName = next.name; await storeTicket(i, t);
     await i.update({ content: `Kategorie: ${next.name}`, components: [] }); return true;
   }
   if (i.isModalSubmit() && i.customId.startsWith('ticket:edit:')) {
     const value = i.fields.getTextInputValue('value');
-    if (i.customId.endsWith(':rename')) await i.channel.setName(safeName(value));
+    if (i.customId.endsWith(':rename')) {
+      const name = safeName(value); if (!name) { await i.reply({ content: 'Der Kanalname braucht Buchstaben oder Zahlen.', ephemeral: true }); return true; }
+      await i.channel.setName(name);
+    }
     else { t.notes = [...(t.notes || []), { authorId: i.user.id, text: value, at: new Date().toISOString() }]; await storeTicket(i, t); }
     await i.reply({ content: 'Gespeichert.', ephemeral: true }); return true;
   }

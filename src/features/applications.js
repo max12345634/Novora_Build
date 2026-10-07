@@ -56,10 +56,12 @@ async function handleApplicationInteraction(i) {
     if ((Number(page) + 1) * 5 < questions.length) { await i.reply({ content: 'Weiter mit dem nächsten Formular.', ephemeral: true,
       components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`application:next:${token}`).setLabel('Weiter').setStyle(ButtonStyle.Primary))] }); return true; }
     await i.deferReply({ ephemeral: true }); drafts.delete(token);
-    const roleId = type.roleId || c.teamRoleId; if (!await i.guild.roles.fetch(roleId).catch(() => null)) { await i.editReply('Die zuständige Rolle fehlt.'); return true; }
+    const roleId = type.roleId || c.teamRoleId;
+    if (!/^\d{17,20}$/.test(roleId || '') || !await i.guild.roles.fetch(roleId).catch(() => null)) { await i.editReply('Die zuständige Rolle fehlt.'); return true; }
     if (Object.values(c.records || {}).some(v => v.userId === i.user.id && v.typeId === type.id && v.state === 'open')) { await i.editReply('Du hast bereits eine offene Bewerbung dieses Typs.'); return true; }
+    const requestedParent = type.parentId || c.categoryId, parent = requestedParent && await i.guild.channels.fetch(requestedParent).catch(() => null);
     const ch = await i.guild.channels.create({ name: `bewerbung-${type.id}-${i.user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 90),
-      type: ChannelType.GuildText, parent: type.parentId || c.categoryId || undefined,
+      type: ChannelType.GuildText, parent: parent?.type === ChannelType.GuildCategory ? parent.id : undefined,
       topic: `novora-application:${i.user.id}:${type.id}`, permissionOverwrites: [
         { id: i.guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
         { id: i.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
