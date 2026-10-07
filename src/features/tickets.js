@@ -51,7 +51,7 @@ function panelPayload(guild, settings) {
   if (!choices.length) throw new Error('Mindestens eine aktive Ticket-Kategorie fehlt.');
   return { embeds: panel(guild, settings, { title: c.panelTitle || `🎫 ${settings.branding?.projectName || guild.name} · Support`,
     description: c.panelDescription || 'Wähle unten den passenden Bereich. Danach kannst du dein Anliegen in einem privaten Formular beschreiben.', imageUrl: c.panelImageUrl,
-    footerImageUrl: c.footerImageUrl }), components: [new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
+    footerImageUrl: c.footerImageUrl, thumbnailUrl: c.thumbnailUrl, footerText: c.footerText, color: c.color }), components: [new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
       .setCustomId(CATEGORY_ID).setPlaceholder('Wähle dein Anliegen …').addOptions(choices.map(v => ({
         label: v.name.slice(0, 100), value: v.id, description: String(v.description || v.name).slice(0, 100), emoji: v.emoji || undefined
       }))))], allowedMentions: { parse: [] } };
@@ -128,6 +128,11 @@ async function handleTicketInteraction(i) {
     if (!cat) { await i.reply({ content: 'Diese Kategorie gibt es nicht mehr.', ephemeral: true }); return true; }
     const count = Object.values(c.records || {}).filter(t => t.requesterId === i.user.id && t.state === 'open' && t.categoryId === cat.id).length;
     if (count >= (cat.maxOpen || c.maxOpen || 1)) { await i.reply({ content: 'Du hast bereits die maximale Anzahl offener Tickets in diesem Bereich.', ephemeral: true }); return true; }
+    const newest = Object.values(c.records || {}).filter(t => t.requesterId === i.user.id && t.categoryId === cat.id)
+      .reduce((timestamp, t) => Math.max(timestamp, Date.parse(t.createdAt) || 0), 0);
+    if (newest && Date.now() - newest < (cat.cooldownSeconds || 0) * 1000) {
+      await i.reply({ content: 'Bitte warte vor einem weiteren Ticket in dieser Kategorie.', ephemeral: true }); return true;
+    }
     const token = id(); drafts.set(token, { guildId: i.guildId, userId: i.user.id, categoryId: cat.id, answers: {}, expires: Date.now() + 15 * 60_000 });
     await i.showModal(form(cat, 0, token)); return true;
   }
@@ -166,10 +171,11 @@ async function handleTicketInteraction(i) {
         { id: roleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }
       ] });
     await updateGuildSettings(i.guildId, old => ({ tickets: { ...old.tickets, records: { ...old.tickets.records, [ch.id]: ticket } } }));
-    await ch.send({ content: `<@${i.user.id}> <@&${roleId}>`, embeds: panel(i.guild, settings, { title: `🎫 ${cat.name} · #${ticket.caseId}`,
-      description: 'Ein Teammitglied wird sich um dein Anliegen kümmern.', imageUrl: cat.openImageUrl || c.openImageUrl,
+    const extraRoles = (cat.pingRoleIds || []).filter(v => i.guild.roles.cache.has(v)).slice(0, 5);
+    await ch.send({ content: `<@${i.user.id}> <@&${roleId}> ${extraRoles.map(v => `<@&${v}>`).join(' ')}`, embeds: panel(i.guild, settings, { title: `🎫 ${cat.name} · #${ticket.caseId}`,
+      description: 'Ein Teammitglied wird sich um dein Anliegen kümmern.', imageUrl: cat.openImageUrl || cat.imageUrl || c.openImageUrl,
       fields: questions.slice(0, 5).map(q => ({ name: q.label, value: (ticket.answers[q.id] || '—').slice(0, 700) })) }),
-      components: controls(ticket), allowedMentions: { users: [i.user.id], roles: [roleId] } });
+      components: controls(ticket), allowedMentions: { users: [i.user.id], roles: [roleId, ...extraRoles] } });
     for (let start = 5; start < questions.length; start += 5) {
       await ch.send({ embeds: panel(i.guild, settings, { title: `Weitere Antworten · #${ticket.caseId}`,
         description: `Fragen ${start + 1}–${Math.min(start + 5, questions.length)}`,

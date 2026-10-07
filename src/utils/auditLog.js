@@ -28,7 +28,9 @@ async function sendLog(guild, title, description, channelOverride = null, target
     if (!channel?.isTextBased()) return;
     const audit = await actor(guild, title, targetId);
     const detail = `${String(description || 'Keine weiteren Details.').slice(0, 3200)}${audit?.user ? `\nAusgeführt von: <@${audit.user}>` : ''}${audit?.reason ? `\nGrund: ${audit.reason.slice(0, 300)}` : ''}`;
-    await channel.send({ embeds: panel(guild, settings, { title: `📋 ${title}`, description: detail }), allowedMentions: { parse: [] } });
+    await channel.send({ embeds: panel(guild, settings, { title: `📋 ${title}`, description: detail,
+      color: c.color, thumbnailUrl: c.thumbnailUrl, imageUrl: c.imageUrl, footerText: c.footerText, footerImageUrl: c.footerImageUrl }),
+      allowedMentions: { parse: [] } });
   } catch (error) { logger.warn('Serverereignis konnte nicht protokolliert werden.', error); }
 }
 module.exports = { sendLog, needed, RANK, actor };

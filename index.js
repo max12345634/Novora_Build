@@ -9,7 +9,7 @@ const { logger } = require('./src/utils/logger');
 
 async function registerSlashCommands(token) {
   const clientId = requireEnv('CLIENT_ID');
-  const guildId = requireEnv('GUILD_ID');
+  const guildId = process.env.GUILD_ID?.trim();
 
   const commandsPath = path.join(process.cwd(), 'src', 'commands');
   const commandFiles = await collectCommandFiles(commandsPath);
@@ -21,8 +21,8 @@ async function registerSlashCommands(token) {
   }
 
   const rest = new REST({ version: '10' }).setToken(token);
-  await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: commands });
-  logger.info(`${commands.length} Slash Commands automatisch registriert.`);
+  await rest.put(guildId ? Routes.applicationGuildCommands(clientId, guildId) : Routes.applicationCommands(clientId), { body: commands });
+  logger.info(`${commands.length} Slash Commands automatisch ${guildId ? 'für Testserver' : 'global'} registriert.`);
 }
 
 async function main() {

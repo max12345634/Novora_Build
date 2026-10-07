@@ -126,7 +126,8 @@ function createCaptchaImage(code) {
 function createPanelEmbed(guild, settings, allSettings = {}) {
   return panel(guild, allSettings, { color: settings.color, title: settings.title || '✅ Verifizierung',
     description: settings.description || 'Starte mit dem Button die Verifizierung, um Zugriff auf den Server zu erhalten.',
-    imageUrl: settings.imageUrl, footerImageUrl: settings.footerImageUrl });
+    imageUrl: settings.imageUrl, thumbnailUrl: settings.thumbnailUrl, footerText: settings.footerText,
+    footerImageUrl: settings.footerImageUrl });
 }
 
 function createVerifyButton() {

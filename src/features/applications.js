@@ -9,10 +9,12 @@ const fallbackType = { id: 'team', name: 'Team', emoji: '📝', enabled: true, q
   { id: 'age', label: 'Wie alt bist du?', style: 'short' }, { id: 'experience', label: 'Welche Erfahrungen hast du?' },
   { id: 'why', label: 'Warum möchtest du dich bewerben?' }, { id: 'time', label: 'Wie viel Zeit hast du?', style: 'short' },
   { id: 'more', label: 'Weitere Informationen', required: false }] };
-const types = (c) => (c.types?.length ? c.types : [fallbackType]).filter(v => v.enabled !== false);
+const types = (c) => (Array.isArray(c.types) ? c.types : [fallbackType]).filter(v => v.enabled !== false);
 function applicationPanel(guild, s) {
   return panel(guild, s, { title: s.applications?.panelTitle || `📝 Bewerbungen · ${s.branding?.projectName || guild.name}`,
-    description: s.applications?.panelDescription || 'Wähle den Bereich aus, für den du dich bewerben möchtest.', imageUrl: s.applications?.panelImageUrl });
+    description: s.applications?.panelDescription || 'Wähle den Bereich aus, für den du dich bewerben möchtest.', imageUrl: s.applications?.panelImageUrl,
+    thumbnailUrl: s.applications?.thumbnailUrl, footerText: s.applications?.footerText, footerImageUrl: s.applications?.footerImageUrl,
+    color: s.applications?.color });
 }
 async function sendApplicationPanel(channel, guild) {
   const s = await getGuildSettings(guild.id), c = s.applications, options = types(c).slice(0, 25).map(v => ({ label: v.name.slice(0, 100), value: v.id, emoji: v.emoji || '📝' }));

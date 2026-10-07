@@ -34,7 +34,8 @@ function createLifecycleEmbeds(member, settings, memberCount, allSettings = {}) 
   const render = (value) => replacePlaceholders(value, member, memberCount);
   return panel(member.guild, allSettings, { title: render(settings.title || member.guild.name),
     description: render(settings.description || ' '), color: settings.color,
-    imageUrl: settings.imageUrl, thumbnailUrl: settings.thumbnailUrl, footerImageUrl: settings.footerImageUrl });
+    imageUrl: settings.imageUrl, thumbnailUrl: settings.thumbnailUrl, footerImageUrl: settings.footerImageUrl,
+    footerText: render(settings.footerText || '') });
 }
 
 async function sendLifecycleMessage(member, kind, memberCount) {

@@ -69,6 +69,8 @@ Ohne Provider arbeitet Novora mit Presets, Schlüsselwörtern und der pro Server
 
 `data/guild-settings.json` bleibt auf dem Hosting-Server und ist nicht in Git. Beim Laden werden ältere Einstellungen auf Schema 2 ergänzt, ohne sie sofort neu zu schreiben. Schreibvorgänge werden seriell und atomar ausgeführt. Bitte das `data/`-Verzeichnis vor einem Hosting-Wechsel sichern; keine Token in die JSON-Datei schreiben.
 
+Für mehrere Server `GUILD_ID` in der BotHosting-Umgebung entfernen. Novora registriert Slash Commands dann global; deren Sichtbarkeit kann nach Discord-Änderungen etwas verzögert sein. Mit `GUILD_ID` bleiben die Commands auf diesen Testserver beschränkt. Bestehende Installationen mit `GUILD_ID` laufen unverändert weiter.
+
 ### Rechte und Grenzen
 
 Der Bot benötigt `Kanäle verwalten`, `Kanal ansehen`, `Nachrichten senden`, `Links einbetten`, `Nachrichtenverlauf lesen` und für Verify `Rollen verwalten`; seine Rolle muss über der Verify-Rolle stehen. `Audit-Log ansehen` ergänzt bei bestimmten Ereignissen einen wahrscheinlichen Akteur. Für Timeout/Kick sind `Mitglieder moderieren`/`Mitglieder kicken` nötig. Transcripts lesen bis zu 2000 Nachrichten und enthalten HTML und Text; Anhänge werden als Links dokumentiert. Uploads über Discords Größenlimit können im Log scheitern, die Schließung bleibt bestehen. Captcha-Challenges und noch nicht abgeschlossene mehrseitige Formulare sind bewusst kurzlebig und starten nach einem Bot-Neustart neu.

@@ -4,7 +4,10 @@ const { GatewayIntentBits } = require('discord.js');
 const { collectCommandFiles } = require('../src/loaders/commands');
 const { createCaptchaImage } = require('../src/features/verify');
 const { makeForm } = require('../src/features/orders');
-const { setupMenu, ticketWizard, typePicker, categoryModal } = require('../src/features/setup');
+const { setupMenu, ticketWizard, typePicker, categoryModal, systemView, designModal } = require('../src/features/setup');
+const { applicationPanel } = require('../src/features/applications');
+const { createPanelEmbed, createVerifyButton } = require('../src/features/verify');
+const { createLifecycleEmbeds } = require('../src/features/welcome');
 const { SERVER_TYPES, suggest } = require('../src/features/presets');
 const { form, panelPayload } = require('../src/features/tickets');
 const { modal: applicationModal } = require('../src/features/applications');
@@ -77,6 +80,13 @@ async function main() {
   checkMessage(panelPayload(guild, settings));
   for (let step = 1; step <= 6; step++) checkMessage(ticketWizard({ ...settings.tickets, step }, settings, guild));
   checkMessage(typePicker('', 0)); checkMessage({ components: [setupMenu()] });
+  for (const section of ['tickets', 'verify', 'welcome', 'logs', 'applications', 'branding', 'ai']) {
+    checkMessage(systemView(guild, settings, section)); checkModal(designModal(section));
+  }
+  checkMessage({ embeds: createPanelEmbed(guild, { title: 'Verifizierung' }, settings), components: [createVerifyButton()] });
+  checkMessage({ embeds: applicationPanel(guild, settings) });
+  const member = { guild, id: '123456789012345678', user: { username: 'Test', createdAt: new Date() }, joinedAt: new Date() };
+  checkMessage({ embeds: createLifecycleEmbeds(member, { title: 'Hallo %USERNAME%', description: '%MENTION%' }, 5, settings) });
   const legacy = migrateGuild({ tickets: { categories: { legacy: { label: 'Alte Kategorie' } } }, applications: { teamRoleId: '123' } });
   assert(legacy.tickets.categories[0].name === 'Alte Kategorie' && legacy.applications.types.length, 'Migration fehlgeschlagen');
   if (fs.existsSync('data/guild-settings.json')) JSON.parse(fs.readFileSync('data/guild-settings.json', 'utf8'));

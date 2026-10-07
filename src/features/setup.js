@@ -5,9 +5,10 @@ const { panel } = require('../utils/theme');
 const { SERVER_TYPES, suggest } = require('./presets');
 const { panelPayload, sendTicketPanel, categories } = require('./tickets');
 const { createPanelEmbed, createVerifyButton } = require('./verify');
+const { createLifecycleEmbeds } = require('./welcome');
 const { applicationPanel, sendApplicationPanel } = require('./applications');
 const { validHttpUrl } = require('./embeds');
-const { testAnswer } = require('./ai');
+const { testAnswer, setupSuggestions } = require('./ai');
 const { Routes } = require('discord.js');
 const searches = new Map();
 const menuItems = [
@@ -38,11 +39,12 @@ function systemView(guild, s, section) {
   const embeds = panel(guild, s, { title: menuItems.find(v => v[0] === section)?.[1] || section,
     description: 'Konfiguriere die Einstellungen. Prüfe die Vorschau vor der Veröffentlichung.', fields });
   const components = [row(button(`edit:${section}`, 'Bearbeiten', ButtonStyle.Primary),
-    button(`preview:${section}`, 'Vorschau'), button(`toggle:${section}`, c.enabled ? 'Deaktivieren' : 'Aktivieren', c.enabled ? ButtonStyle.Danger : ButtonStyle.Success)), back()];
+    button(`preview:${section}`, 'Vorschau'), button(`toggle:${section}`, c.enabled ? 'Deaktivieren' : 'Aktivieren', c.enabled ? ButtonStyle.Danger : ButtonStyle.Success),
+    button(`design:${section}`, 'Design & Bilder')), back()];
   if (section === 'tickets') return ticketWizard(c, s, guild);
-  if (section === 'ai') components.splice(1, 0, row(button('ai-test', 'KI testen'), button('ai-options', 'Antwortmodus')));
+  if (section === 'ai') components.splice(1, 0, row(button('ai-test', 'KI testen'), button('ai-options', 'Antwortmodus'), button('ai-analyze', 'Server analysieren')));
   if (section === 'branding') components.splice(1, 0, row(button('branding-page', 'Weitere Bilder'), button('brand-profile', 'Bot-Profil')));
-  if (section === 'welcome') components.splice(1, 0, row(button('edit-leave', 'Leave gestalten')));
+  if (section === 'welcome') components.splice(1, 0, row(button('edit-leave', 'Leave gestalten'), button('design:leave', 'Leave-Bilder'), button('preview:leave', 'Leave-Vorschau')));
   if (section === 'applications') components.splice(1, 0, row(button('application-manage', 'Bewerbungstypen verwalten')));
   if (section === 'verify') components.splice(1, 0, row(new ChannelSelectMenuBuilder().setCustomId('setup:pick:verify:channelId').setPlaceholder('Verify-Kanal').addChannelTypes(ChannelType.GuildText)),
     row(new RoleSelectMenuBuilder().setCustomId('setup:pick:verify:roleId').setPlaceholder('Verify-Rolle')));
@@ -72,7 +74,7 @@ function ticketWizard(c = {}, settings = {}, guild = { name: 'Server' }) {
     row(new ChannelSelectMenuBuilder().setCustomId('setup:pick:tickets:logChannelId').setPlaceholder('Logkanal').addChannelTypes(ChannelType.GuildText).setMinValues(0)));
   if (step === 6) {
     try { embeds.push(...panelPayload(guild, settings).embeds); } catch { /* Vor Konfiguration ist keine Panel-Vorschau verfügbar. */ }
-    components.push(row(button('activate-ticket', 'Panel veröffentlichen', ButtonStyle.Success)));
+    components.push(row(button('activate-ticket', 'Panel veröffentlichen', ButtonStyle.Success), button('edit:tickets', 'Panel-Texte'), button('design:tickets', 'Design & Bilder')));
   }
   components.push(row(button('step:back', '← Zurück'), button('step:next', 'Weiter →', ButtonStyle.Primary), button('home', 'Übersicht')));
   return { embeds, components };
@@ -98,6 +100,11 @@ function brandingModal(c = {}, page = 1) {
     input('defaultImageUrl', 'Standard-Embed-Bild URL', c.defaultImageUrl, undefined, 500)];
   return modal(`branding:${page}`, `Branding ${page}/2`, fields);
 }
+function designModal(section, c = {}) { return modal(`style:${section}`, 'Design und Bilder', [
+  input('color', 'Farbe (#RRGGBB)', c.color, undefined, 7), input('thumbnailUrl', 'Thumbnail URL', c.thumbnailUrl, undefined, 500),
+  input('imageUrl', 'Banner-/Bild-URL', c.imageUrl || c.panelImageUrl, undefined, 500),
+  input('footerText', 'Footer-Text', c.footerText, undefined, 200),
+  input('footerImageUrl', 'Grafisches Footer-Bild URL', c.footerImageUrl, undefined, 500) ]); }
 function editModal(section, c = {}) {
   if (section === 'branding') return brandingModal(c);
   if (section === 'verify') return modal('config:verify', 'Verify gestalten', [input('title', 'Titel', c.title), input('description', 'Beschreibung', c.description, TextInputStyle.Paragraph, 1500),
@@ -136,6 +143,10 @@ async function activate(i, section, s) {
     const role = await i.guild.roles.fetch(section === 'verify' ? c.roleId : c.teamRoleId).catch(() => null);
     if (!role) throw new Error('Die ausgewählte Rolle fehlt.');
     if (section === 'verify' && (!me.permissions.has(PermissionFlagsBits.ManageRoles) || role.position >= me.roles.highest.position)) throw new Error('Novora benötigt Rollen verwalten und muss über der Verify-Rolle stehen.');
+    if (section === 'verify' && c.removeRoleId) { const remove = await i.guild.roles.fetch(c.removeRoleId).catch(() => null);
+      if (!remove || remove.position >= me.roles.highest.position) throw new Error('Novora kann die zu entfernende Rolle nicht verwalten.'); }
+    if (section === 'verify' && c.failureAction === 'kick' && !me.permissions.has(PermissionFlagsBits.KickMembers)) throw new Error('Für Kick bei falschem Captcha benötigt Novora Mitglieder kicken.');
+    if (section === 'verify' && c.failureAction === 'timeout' && !me.permissions.has(PermissionFlagsBits.ModerateMembers)) throw new Error('Für Timeout benötigt Novora Mitglieder moderieren.');
     if (section === 'tickets' && (!me.permissions.has(PermissionFlagsBits.ManageChannels) || !categories(c).length)) throw new Error('Novora benötigt Kanäle verwalten und mindestens eine aktive Ticket-Kategorie.');
     if (section === 'applications' && !me.permissions.has(PermissionFlagsBits.ManageChannels)) throw new Error('Novora benötigt Kanäle verwalten.');
     if (section === 'tickets') { await patch(i, section, { enabled: true }); await sendTicketPanel(channel, i.guild); }
@@ -189,6 +200,7 @@ async function handleSetupInteraction(i) {
       const cat = (c.categories || []).find(v => v.id === i.values[0]); if (!cat) return true;
       await i.update({ content: `${cat.emoji || '🎫'} ${cat.name} · ${cat.enabled === false ? 'inaktiv' : 'aktiv'}`, components: [row(
         button(`category-open:${cat.id}`, 'Bearbeiten'), button(`category-extra:${cat.id}`, 'Rollen & Limits'),
+        button(`category-advanced:${cat.id}`, 'Pings & Cooldown'),
         button(`category-toggle:${cat.id}`, cat.enabled === false ? 'Aktivieren' : 'Deaktivieren'),
         button(`category-remove:${cat.id}`, 'Entfernen', ButtonStyle.Danger))] }); return true; }
     if (action === 'category-open') { const c = (await getGuildSettings(i.guildId)).tickets, cat = c.categories?.find(v => v.id === parts[2]);
@@ -198,12 +210,23 @@ async function handleSetupInteraction(i) {
         input('roleId', 'Supportrolle ID', cat.roleId, undefined, 20), input('parentId', 'Discord-Kategorie ID', cat.parentId, undefined, 20),
         input('logChannelId', 'Logkanal ID', cat.logChannelId, undefined, 20), input('openImageUrl', 'Ticket-Bild URL', cat.openImageUrl, undefined, 500),
         input('maxOpen', 'Maximale offene Tickets (1–10)', cat.maxOpen || '1', undefined, 2)])); return true; }
+    if (action === 'category-advanced') { const c = (await getGuildSettings(i.guildId)).tickets, cat = c.categories?.find(v => v.id === parts[2]);
+      if (cat) await i.showModal(modal(`category-advanced-save:${cat.id}`, 'Kategorie: weitere Optionen', [
+        input('pingRoleIds', 'Ping-Rollen IDs (Komma getrennt)', (cat.pingRoleIds || []).join(','), undefined, 200),
+        input('cooldownSeconds', 'Cooldown in Sekunden (0–86400)', cat.cooldownSeconds || '0', undefined, 5),
+        input('imageUrl', 'Kategorie-Panel-Bild URL', cat.imageUrl, undefined, 500)])); return true; }
     if (action === 'category-toggle' || action === 'category-remove') { const s = await getGuildSettings(i.guildId), cats = s.tickets.categories || [];
       const next = await patch(i, 'tickets', { categories: action === 'category-remove' ? cats.filter(v => v.id !== parts[2]) : cats.map(v => v.id === parts[2] ? { ...v, enabled: v.enabled === false } : v) });
       await view(i, 'tickets', next); return true; }
     if (action === 'category-extras' && i.isModalSubmit()) { const f = readFields(i), s = await getGuildSettings(i.guildId);
       validateUrls(f); if (!/^\d{1,2}$/.test(f.maxOpen) || Number(f.maxOpen) < 1 || Number(f.maxOpen) > 10) throw new Error('Maximum muss 1–10 sein.');
       const cats = s.tickets.categories.map(v => v.id === parts[2] ? { ...v, ...f, maxOpen: Number(f.maxOpen) } : v);
+      const next = await patch(i, 'tickets', { categories: cats }); await i.reply({ ...ticketWizard(next.tickets, next, i.guild), ephemeral: true }); return true; }
+    if (action === 'category-advanced-save' && i.isModalSubmit()) { const f = readFields(i), s = await getGuildSettings(i.guildId);
+      validateUrls(f); if (!/^\d{1,5}$/.test(f.cooldownSeconds) || Number(f.cooldownSeconds) > 86400) throw new Error('Cooldown muss 0–86400 Sekunden sein.');
+      const pingRoleIds = f.pingRoleIds.split(',').map(v => v.trim()).filter(Boolean);
+      if (pingRoleIds.length > 5 || pingRoleIds.some(v => !/^\d{17,20}$/.test(v))) throw new Error('Maximal fünf gültige Rollen-IDs angeben.');
+      const cats = s.tickets.categories.map(v => v.id === parts[2] ? { ...v, pingRoleIds, cooldownSeconds: Number(f.cooldownSeconds), imageUrl: f.imageUrl } : v);
       const next = await patch(i, 'tickets', { categories: cats }); await i.reply({ ...ticketWizard(next.tickets, next, i.guild), ephemeral: true }); return true; }
     if (action === 'category-save' && i.isModalSubmit()) {
       const f = readFields(i), s = await getGuildSettings(i.guildId), old = s.tickets.categories || [], id = parts[2] || f.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30);
@@ -222,6 +245,11 @@ async function handleSetupInteraction(i) {
     if (action === 'pick') { const section = parts[2], field = parts[3]; const s = await patch(i, section, { [field]: i.values[0] || null }); await view(i, section, s); return true; }
     if (action === 'activate-ticket') { await activate(i, 'tickets', await getGuildSettings(i.guildId)); return true; }
     if (action === 'edit') { const s = await getGuildSettings(i.guildId); await i.showModal(editModal(parts[2], s[parts[2]])); return true; }
+    if (action === 'design') { const s = await getGuildSettings(i.guildId); await i.showModal(designModal(parts[2], s[parts[2]])); return true; }
+    if (action === 'style' && i.isModalSubmit()) { const section = parts[2], f = readFields(i); validateUrls(f);
+      if (f.color && !/^#?[0-9a-fA-F]{6}$/.test(f.color)) throw new Error('Farbe muss #RRGGBB sein.');
+      if (section === 'applications') { f.panelImageUrl = f.imageUrl; delete f.imageUrl; }
+      const s = await patch(i, section, f); await i.reply({ ...systemView(i.guild, s, section), ephemeral: true }); return true; }
     if (action === 'application-manage') { const s = await getGuildSettings(i.guildId), types = s.applications?.types || [];
       if (!types.length) throw new Error('Erstelle zuerst einen Bewerbungstyp über Bearbeiten.');
       await i.reply({ content: 'Bewerbungstyp auswählen', ephemeral: true, components: [row(new StringSelectMenuBuilder()
@@ -253,6 +281,18 @@ async function handleSetupInteraction(i) {
       input('footerImageUrl', 'Footer-Bild URL', s.leave?.footerImageUrl, undefined, 500)])); return true; }
     if (action === 'ai-options') { const s = await getGuildSettings(i.guildId); await i.reply({ content: 'KI-Ticket-Assistent: Modus wählen', ephemeral: true,
       components: [row(button('ai-mode:auto', 'Automatische Antworten'), button('ai-mode:staff', 'Nur Staff-Vorschläge'), button('ai-mode:off', 'Aus'))] }); return true; }
+    if (action === 'ai-analyze') { const s = await getGuildSettings(i.guildId), proposal = setupSuggestions(s);
+      await i.reply({ embeds: panel(i.guild, s, { title: '🤖 Serveranalyse · Vorschlag',
+        description: 'Novora nutzt deine Serverbeschreibung und regelbasierte Presets. Es wird noch nichts veröffentlicht.',
+        fields: [{ name: 'Ticket-Kategorien', value: proposal.categories.map(v => v.name).join(', ').slice(0, 1024) },
+          { name: 'Bewerbungen', value: proposal.applications.map(v => v.name).join(', ') || 'Keine erkannt' },
+          { name: 'Weitere Empfehlungen', value: 'Verify und Basis-Logging prüfen' }] }),
+        components: [row(button('ai-accept', 'Vorschläge übernehmen', ButtonStyle.Success), button('home', 'Verwerfen'))], ephemeral: true }); return true; }
+    if (action === 'ai-accept') { const s = await getGuildSettings(i.guildId), proposal = setupSuggestions(s);
+      await updateGuildSettings(i.guildId, old => ({ tickets: { ...old.tickets, categories: old.tickets.categories?.length ? old.tickets.categories : proposal.categories },
+        applications: { ...old.applications, types: old.applications.types?.length ? old.applications.types : proposal.applications },
+        logs: { ...old.logs, profile: old.logs.profile || proposal.logs } }));
+      await i.update({ content: 'Vorschläge als Entwurf gespeichert. Prüfe Rollen/Kanäle und aktiviere die Systeme anschließend einzeln.', embeds: [], components: [] }); return true; }
     if (action === 'ai-mode') { const mode = parts[2], s = await patch(i, 'ai', { enabled: mode !== 'off', ticketEnabled: mode !== 'off', autoReply: mode === 'auto' });
       await i.update({ content: `KI-Modus: ${mode}`, components: [] }); return true; }
     if (action === 'branding-page') { const s = await getGuildSettings(i.guildId); await i.showModal(brandingModal(s.branding, 2)); return true; }
@@ -275,8 +315,10 @@ async function handleSetupInteraction(i) {
       const s = await getGuildSettings(i.guildId); await i.reply({ ...systemView(i.guild, s, section), ephemeral: true }); return true;
     }
     if (action === 'preview') { const s = await getGuildSettings(i.guildId), section = parts[2];
+      const member = { guild: i.guild, id: i.user.id, user: i.user, joinedAt: new Date() };
       const embeds = section === 'tickets' ? panelPayload(i.guild, s).embeds : section === 'verify' ? createPanelEmbed(i.guild, s.verify, s) :
-        section === 'applications' ? applicationPanel(i.guild, s) : panel(i.guild, s, { title: section, description: 'Vorschau des aktuellen Designs' });
+        section === 'applications' ? applicationPanel(i.guild, s) : ['welcome', 'leave'].includes(section) ? createLifecycleEmbeds(member, s[section] || {}, i.guild.memberCount, s) :
+          panel(i.guild, s, { title: section, description: 'Vorschau des aktuellen Designs' });
       await i.reply({ embeds: Array.isArray(embeds) ? embeds : [embeds], ephemeral: true }); return true; }
     if (action === 'toggle') { const section = parts[2], s = await getGuildSettings(i.guildId);
       if (s[section]?.enabled) { const next = await patch(i, section, { enabled: false }); await view(i, section, next); }
@@ -292,4 +334,4 @@ function categoryModal(c = {}) { return modal(`category-save:${c.id || ''}`, c.i
   input('description', 'Beschreibung', c.description, undefined, 100),
   input('prefix', 'Ticket-Kanal-Präfix', c.prefix, undefined, 30),
   input('questions', 'Formularfragen je Zeile (max. 20)', (c.questions || []).map(q => q.label).join('\n'), TextInputStyle.Paragraph, 1000) ]); }
-module.exports = { baseEmbed, setupMenu, handleSetupInteraction, ticketWizard, typePicker, categoryModal };
+module.exports = { baseEmbed, setupMenu, handleSetupInteraction, ticketWizard, typePicker, categoryModal, systemView, designModal };

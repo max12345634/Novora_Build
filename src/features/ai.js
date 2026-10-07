@@ -52,7 +52,14 @@ async function assistTicket(message) {
   await message.reply({ content: `🤖 ${answer}`, allowedMentions: { parse: [] } });
 }
 function setupSuggestions(settings) {
-  return { categories: suggest(settings.tickets?.serverType, settings.tickets?.serverDescription || settings.ai?.description || ''),
-    verify: true, logs: 'basis', applications: /(bewerb|team|polizei|feuerwehr)/i.test(settings.tickets?.serverDescription || '') };
+  const description = settings.tickets?.serverDescription || settings.ai?.description || '';
+  const applicationNames = [];
+  if (/(team|support|moderation|bewerb)/i.test(description)) applicationNames.push('Support-Team');
+  if (/(polizei)/i.test(description)) applicationNames.push('Polizei');
+  if (/(feuerwehr)/i.test(description)) applicationNames.push('Feuerwehr');
+  if (/(rettungsdienst)/i.test(description)) applicationNames.push('Rettungsdienst');
+  return { categories: suggest(settings.tickets?.serverType, description), verify: true, logs: 'basis',
+    applications: applicationNames.map(name => ({ id: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), name, emoji: '📝', enabled: true,
+      questions: [{ id: 'motivation', label: 'Warum möchtest du dich bewerben?', style: 'paragraph' }] })) };
 }
 module.exports = { fallback, sensitive, testAnswer, assistTicket, setupSuggestions };
