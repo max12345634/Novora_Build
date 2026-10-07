@@ -14,8 +14,8 @@ function migrateGuild(input = {}) {
   if (tickets.enabled && !tickets.categories) {
     // Bereits veröffentlichte v0.2-Panels verwenden diese IDs. Nur Altserver erhalten sie.
     tickets.categories = [
-      ['general', 'Allgemeiner Support'], ['rules', 'Regel- & RP-Fragen'],
-      ['report', 'Spieler melden'], ['technical', 'Technischer Support'], ['team', 'Team-Beschwerde']
+      ['general', 'Allgemeiner Support'], ['technical', 'Technische Hilfe'],
+      ['account', 'Konto und Zugang'], ['feedback', 'Feedback und Vorschläge'], ['other', 'Sonstiges']
     ].map(([id, name]) => ({ id, name, prefix: id, emoji: '🎫', description: name, enabled: true,
       questions: [{ id: 'topic', label: 'Thema', style: 'paragraph' }] }));
   }

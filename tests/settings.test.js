@@ -29,6 +29,7 @@ test('Old guild settings are migrated without dropping unrelated features', asyn
     const old = await getGuildSettings('old');
     assert.equal(old.orders.enabled, true);
     assert.equal(old.tickets.categories.length, 5);
+    assert.ok(old.tickets.categories.every(category => !/rp|spieler melden/i.test(category.name)));
     assert.equal(old.applications.types[0].id, 'team');
   } finally { await fs.rm(folder, { recursive: true, force: true }); }
 });

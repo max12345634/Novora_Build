@@ -1,6 +1,6 @@
 # Novora Build
 
-Node.js Discord-Bot mit discord.js fuer Novora und Shadow RP.
+Node.js Discord-Bot mit discord.js für Community- und Support-Server.
 
 ## Funktionen
 
