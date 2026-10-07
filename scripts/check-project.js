@@ -4,7 +4,7 @@ const { GatewayIntentBits } = require('discord.js');
 const { collectCommandFiles } = require('../src/loaders/commands');
 const { createCaptchaImage } = require('../src/features/verify');
 const { makeForm } = require('../src/features/orders');
-const { setupMenu, ticketWizard, typePicker, categoryModal, systemView, designModal, categoryManage, applicationManage } = require('../src/features/setup');
+const { setupMenu, ticketWizard, typePicker, categoryModal, systemView, designModal, categoryManage, applicationManage, assetUploadModal } = require('../src/features/setup');
 const { applicationPanel } = require('../src/features/applications');
 const { createPanelEmbed, createVerifyButton } = require('../src/features/verify');
 const { createLifecycleEmbeds } = require('../src/features/welcome');
@@ -47,8 +47,17 @@ function checkMessage(payload) {
 function checkModal(m) {
   const json = m.toJSON(); assert(json.components.length >= 1 && json.components.length <= 5, 'Modal-Fragen außerhalb 1–5');
   assert(json.custom_id.length <= 100, 'Modal-Custom ID zu lang');
-  for (const row of json.components) for (const c of row.components) {
-    assert(c.label.length <= 45 && c.max_length <= 4000 && c.custom_id.length <= 100, 'Text Input über Discord-Limit');
+  for (const item of json.components) {
+    if (item.type === 18) {
+      const c = item.component;
+      assert(item.label.length <= 45 && c.custom_id.length <= 100, 'Modal-Label oder Custom ID über Discord-Limit');
+      if (c.type === 19) assert((c.min_values ?? 0) >= 0 && (c.max_values ?? 1) <= 10, 'Datei-Upload außerhalb des Discord-Limits');
+      if (c.type === 4) assert(c.max_length <= 4000, 'Text Input über Discord-Limit');
+      continue;
+    }
+    for (const c of item.components || []) {
+      assert(c.label.length <= 45 && c.max_length <= 4000 && c.custom_id.length <= 100, 'Text Input über Discord-Limit');
+    }
   }
 }
 async function main() {
@@ -69,6 +78,7 @@ async function main() {
   assert(Buffer.isBuffer(png) && png.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])), 'Captcha ist kein PNG');
   checkModal(makeForm()); checkModal(applicationModal());
   checkModal(categoryModal());
+  for (const scope of ['branding', 'tickets', 'verify', 'welcome', 'leave', 'applications', 'category', 'application-type']) checkModal(assetUploadModal(scope, 'test-category'));
   assert(SERVER_TYPES.length >= 100 && new Set(SERVER_TYPES.map(v => v.id)).size === SERVER_TYPES.length, 'Servertypen fehlen oder IDs doppelt');
   for (const type of SERVER_TYPES) {
     const categories = suggest(type.id, ''); assert(categories.length > 0 && categories.length <= 25, `Preset ungültig: ${type.id}`);

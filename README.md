@@ -36,7 +36,7 @@ Im Discord Developer Portal unter **Bot → Privileged Gateway Intents** muessen
 
 ## News und Embed
 
-Richte zuerst `/setup news` mit einem Kanal und optionaler Ping-Rolle ein. Danach erstellt `/news` Ankuendigungen. `/nachricht` sendet ein eigenes Embed mit Titel, Text, Bildern, Footer und Farbe.
+Richte zuerst `/setup news` mit einem Kanal und optionaler Ping-Rolle ein. Danach erstellt `/news` Ankündigungen. `/nachricht` sendet ein eigenes Embed mit Titel, Text, Bildern aus der Galerie und Farbe; beide Commands übernehmen das gemeinsame Bot-Design.
 
 ## Verify
 
@@ -59,7 +59,11 @@ Nach Code-Aenderungen muessen Slash Commands mit `npm run deploy:commands` neu r
 
 `/setup` öffnet die Serververwaltung. Ticket-Einrichtung: Servertyp suchen, Server beschreiben, regelbasierte Vorschläge übernehmen, Kategorien bearbeiten, Kanal/Rolle festlegen und Vorschau prüfen. Die 116 Servertypen werden in 25er-Seiten gefiltert. Die Vorschläge sind editierbare Daten, keine externen KI-Aufrufe. Nach dem Aktivieren wird das bestehende Panel bei Änderungen aktualisiert. Für mehrere Panels ist derzeit ein Panel pro Server vorgesehen.
 
-Unter Branding lassen sich Projektname, Farben, Logo, Banner, Thumbnail und grafisches Footer-Bild mit direkten HTTPS-Bild-URLs setzen. Discord unterstützt pro Embed ein großes Bild; Novora zeigt das grafische Footer-Bild in einem zweiten Embed an. Bot-Name und Bio können im vorhandenen `/branding` Command geändert werden, Profilbild und Bot-Banner als Discord-Anhänge. Das ist eine Discord-Profiländerung, keine Panel-URL.
+Unter **Setup → Bot-Design** lassen sich Projektname, Farben und der gemeinsame Footer-Text festlegen. Dieser Footer-Text und das grafische Footer-Bild werden für alle Novora-Panels verwendet. Logo, Banner, Thumbnail, Standardbild und die Bilder der einzelnen Systeme werden direkt aus der Galerie hochgeladen; URL-Eingaben sind dafür nicht nötig. Discord zeigt das grafische Footer-Bild als eigenes Bild direkt unter dem Panel an.
+
+**Einmalige Einrichtung auf iPhone/iPad:** Erstelle in Discord einen privaten Textkanal, zum Beispiel `#novora-assets`, den nur du und der Bot sehen könnt. Öffne `/setup` → **Bot-Design**, wähle diesen Kanal im Feld „Privaten Bilder-Speicherkanal wählen“ und tippe auf **Bilder aus Galerie**. Tippe je Bildfeld auf Datei auswählen und wähle das Bild aus Fotos. Danach kannst du unter Tickets, Verify, Welcome/Leave und Bewerbungen weitere Systembilder genauso hochladen. Der Speicherkanal darf später nicht gelöscht werden, weil dort die gespeicherten Bilddateien liegen.
+
+Der Bot benötigt in diesem Speicherkanal **Kanal ansehen**, **Nachrichten senden**, **Dateien anhängen** und **Links einbetten**. Uploads sind auf PNG, JPG, WEBP oder GIF und 15 MB pro Bild begrenzt. Bot-Name und Bio können im vorhandenen `/branding`-Command geändert werden; Profilbild und Bot-Banner werden dort ebenfalls als Discord-Anhänge ausgewählt.
 
 Bewerbungstypen werden in `/setup → Bewerbungen → Bearbeiten` hinzugefügt. Eine Frage je Zeile, bis zu 20 Fragen; die Formulare öffnen sich in mehreren Schritten mit höchstens fünf Eingaben pro Modal. Typen lassen sich in der JSON-Konfiguration individuell mit `roleId`, `parentId`, `logChannelId`, `imageUrl` und `enabled` versehen. Tickets verwenden das gleiche Fragenformat pro Kategorie. Für komplexere Datenfelder, beispielsweise Ping-Rollen und Cooldowns, ist derzeit die JSON-Konfiguration erforderlich.
 
