@@ -1,13 +1,35 @@
 require('dotenv/config');
 
-const { Client, Collection, GatewayIntentBits, Partials } = require('discord.js');
-const { loadCommands } = require('./src/loaders/commands');
+const path = require('node:path');
+const { Client, Collection, GatewayIntentBits, Partials, REST, Routes } = require('discord.js');
+const { loadCommands, collectCommandFiles } = require('./src/loaders/commands');
 const { loadEvents } = require('./src/loaders/events');
 const { requireEnv } = require('./src/utils/env');
 const { logger } = require('./src/utils/logger');
 
+async function registerSlashCommands(token) {
+  const clientId = requireEnv('CLIENT_ID');
+  const guildId = requireEnv('GUILD_ID');
+
+  const commandsPath = path.join(process.cwd(), 'src', 'commands');
+  const commandFiles = await collectCommandFiles(commandsPath);
+  const commands = [];
+
+  for (const filePath of commandFiles) {
+    const command = require(filePath);
+    if (command.data) commands.push(command.data.toJSON());
+  }
+
+  const rest = new REST({ version: '10' }).setToken(token);
+  await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: commands });
+  logger.info(`${commands.length} Slash Commands automatisch registriert.`);
+}
+
 async function main() {
   const token = requireEnv('BOT_TOKEN');
+
+  // Bei jedem Neustart werden die aktuellen Commands zuerst mit Discord abgeglichen.
+  await registerSlashCommands(token);
 
   const client = new Client({
     intents: [
