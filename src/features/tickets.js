@@ -112,7 +112,8 @@ async function close(i, t, c, settings, reason) {
   await i.channel.send({ embeds: panel(i.guild, settings, { title: '🔒 Ticket geschlossen', description: `Case #${t.caseId}\nGrund: ${t.closeReason}` }), components: [
     new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ticket:reopen').setLabel('Erneut öffnen').setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId('ticket:rate').setLabel('Bewerten').setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId('ticket:transcript').setLabel('Transcript').setStyle(ButtonStyle.Secondary)) ] });
+      new ButtonBuilder().setCustomId('ticket:transcript').setLabel('Transcript').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('ticket:delete-request').setLabel('Löschen').setStyle(ButtonStyle.Danger)) ] });
   const files = await transcript(i.channel, t).catch(error => { logger.warn('Transcript fehlgeschlagen', error); return null; });
   const log = await i.guild.channels.fetch(c.logChannelId).catch(() => null);
   if (files && log?.isTextBased()) await log.send({ content: `Ticket #${t.caseId} geschlossen · ${t.categoryName || t.categoryId} · <@${t.requesterId}>`, files, allowedMentions: { parse: [] } }).catch(error => logger.warn('Transcript-Upload fehlgeschlagen', error));
@@ -167,8 +168,14 @@ async function handleTicketInteraction(i) {
     await updateGuildSettings(i.guildId, old => ({ tickets: { ...old.tickets, records: { ...old.tickets.records, [ch.id]: ticket } } }));
     await ch.send({ content: `<@${i.user.id}> <@&${roleId}>`, embeds: panel(i.guild, settings, { title: `🎫 ${cat.name} · #${ticket.caseId}`,
       description: 'Ein Teammitglied wird sich um dein Anliegen kümmern.', imageUrl: cat.openImageUrl || c.openImageUrl,
-      fields: questions.slice(0, 20).map(q => ({ name: q.label, value: (ticket.answers[q.id] || '—').slice(0, 1024) })) }),
+      fields: questions.slice(0, 5).map(q => ({ name: q.label, value: (ticket.answers[q.id] || '—').slice(0, 700) })) }),
       components: controls(ticket), allowedMentions: { users: [i.user.id], roles: [roleId] } });
+    for (let start = 5; start < questions.length; start += 5) {
+      await ch.send({ embeds: panel(i.guild, settings, { title: `Weitere Antworten · #${ticket.caseId}`,
+        description: `Fragen ${start + 1}–${Math.min(start + 5, questions.length)}`,
+        fields: questions.slice(start, start + 5).map(q => ({ name: q.label, value: (ticket.answers[q.id] || '—').slice(0, 700) })) }),
+        allowedMentions: { parse: [] } });
+    }
     await i.editReply(`✅ Ticket erstellt: ${ch}`);
     await sendLog(i.guild, 'Ticket erstellt', `Case #${ticket.caseId} · ${ch} · ${cat.name}`, cat.logChannelId || c.logChannelId); return true;
   }
@@ -194,12 +201,27 @@ async function handleTicketInteraction(i) {
     t.state = 'open'; t.closedAt = null; await storeTicket(i, t);
     await i.channel.permissionOverwrites.edit(t.requesterId, { SendMessages: true }); await i.reply({ content: '🔓 Ticket erneut geöffnet.' }); return true;
   }
+  if (i.isButton() && i.customId === 'ticket:delete-request') {
+    if (!staff) { await i.reply({ content: 'Nur das Support-Team kann Tickets löschen.', ephemeral: true }); return true; }
+    await i.reply({ content: 'Ticket wirklich dauerhaft löschen? Das Transcript muss vorher im Log gesichert sein.', ephemeral: true,
+      components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ticket:delete-confirm').setLabel('Dauerhaft löschen').setStyle(ButtonStyle.Danger))] }); return true;
+  }
+  if (i.isButton() && i.customId === 'ticket:delete-confirm') {
+    if (!staff) { await i.reply({ content: 'Nur das Support-Team kann Tickets löschen.', ephemeral: true }); return true; }
+    await i.deferUpdate();
+    const logId = cat?.logChannelId || c.logChannelId, log = logId && await i.guild.channels.fetch(logId).catch(() => null);
+    if (!log?.isTextBased()) { await i.followUp({ content: 'Löschen abgebrochen: Bitte zuerst einen Transcript-Logkanal einrichten.', ephemeral: true }); return true; }
+    await log.send({ content: `Ticket #${t.caseId} vor Löschung gesichert.`, files: await transcript(i.channel, t), allowedMentions: { parse: [] } });
+    await sendLog(i.guild, 'Ticket gelöscht', `#${t.caseId} · von <@${i.user.id}>`, logId);
+    await updateGuildSettings(i.guildId, old => { const records = { ...old.tickets.records }; delete records[i.channelId]; return { tickets: { ...old.tickets, records } }; });
+    await i.channel.delete('Ticket gelöscht'); return true;
+  }
   if (t.state !== 'open') { await i.reply({ content: 'Dieses Ticket ist geschlossen.', ephemeral: true }); return true; }
   if (i.isButton() && i.customId === 'ticket:claim') {
     if (!staff) { await i.reply({ content: 'Nur das Support-Team kann Tickets übernehmen.', ephemeral: true }); return true; }
     if (t.ownerId && t.ownerId !== i.user.id && !i.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) { await i.reply({ content: 'Das Ticket ist bereits übernommen.', ephemeral: true }); return true; }
     t.ownerId = t.ownerId ? null : i.user.id; t.claimedAt = t.ownerId ? new Date().toISOString() : null; await storeTicket(i, t);
-    if (c.exclusiveClaim && cat?.roleId) await i.channel.permissionOverwrites.edit(cat.roleId, { SendMessages: !t.ownerId });
+    if (c.exclusiveClaim && (cat?.roleId || c.teamRoleId)) await i.channel.permissionOverwrites.edit(cat?.roleId || c.teamRoleId, { SendMessages: !t.ownerId });
     await i.update({ components: controls(t) }); await i.followUp({ content: t.ownerId ? `✅ Übernommen von <@${t.ownerId}>.` : 'Ticket wieder freigegeben.' });
     await sendLog(i.guild, 'Ticket-Übernahme', `#${t.caseId} · ${t.ownerId || 'freigegeben'} · ${t.claimedAt || new Date().toISOString()}`, c.logChannelId); return true;
   }
@@ -279,11 +301,6 @@ async function handleTicketInteraction(i) {
     if (i.customId.endsWith(':rename')) await i.channel.setName(safeName(value));
     else { t.notes = [...(t.notes || []), { authorId: i.user.id, text: value, at: new Date().toISOString() }]; await storeTicket(i, t); }
     await i.reply({ content: 'Gespeichert.', ephemeral: true }); return true;
-  }
-  if (i.isButton() && i.customId === 'ticket:delete-confirm') {
-    await i.deferUpdate(); await sendLog(i.guild, 'Ticket gelöscht', `#${t.caseId} · von <@${i.user.id}>`, c.logChannelId);
-    await updateGuildSettings(i.guildId, old => { const records = { ...old.tickets.records }; delete records[i.channelId]; return { tickets: { ...old.tickets, records } }; });
-    await i.channel.delete('Ticket gelöscht'); return true;
   }
   return false;
 }

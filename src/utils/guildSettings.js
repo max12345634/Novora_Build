@@ -11,6 +11,14 @@ function migrateGuild(input = {}) {
   if (tickets.categories && !Array.isArray(tickets.categories)) {
     tickets.categories = Object.entries(tickets.categories).map(([id, c]) => ({ id, name: c.name || c.label || id, ...c }));
   }
+  if (tickets.enabled && !tickets.categories) {
+    // Bereits veröffentlichte v0.2-Panels verwenden diese IDs. Nur Altserver erhalten sie.
+    tickets.categories = [
+      ['general', 'Allgemeiner Support'], ['rules', 'Regel- & RP-Fragen'],
+      ['report', 'Spieler melden'], ['technical', 'Technischer Support'], ['team', 'Team-Beschwerde']
+    ].map(([id, name]) => ({ id, name, prefix: id, emoji: '🎫', description: name, enabled: true,
+      questions: [{ id: 'topic', label: 'Thema', style: 'paragraph' }] }));
+  }
   const applications = { ...(source.applications || {}) };
   if (!applications.types && (applications.channelId || applications.teamRoleId)) {
     applications.types = [{ id: 'team', name: 'Team', emoji: '📝', enabled: true, roleId: applications.teamRoleId,

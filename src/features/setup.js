@@ -8,6 +8,8 @@ const { createPanelEmbed, createVerifyButton } = require('./verify');
 const { applicationPanel, sendApplicationPanel } = require('./applications');
 const { validHttpUrl } = require('./embeds');
 const { testAnswer } = require('./ai');
+const { Routes } = require('discord.js');
+const searches = new Map();
 const menuItems = [
   ['tickets', '🎫 Tickets', 'Kategorien, Formulare und Panel'], ['verify', '✅ Verify', 'Captcha und Rollen'],
   ['welcome', '👋 Welcome / Leave', 'Nachrichten beim Beitritt und Austritt'], ['logs', '📋 Logs', 'Ereignisse und Protokolle'],
@@ -39,7 +41,9 @@ function systemView(guild, s, section) {
     button(`preview:${section}`, 'Vorschau'), button(`toggle:${section}`, c.enabled ? 'Deaktivieren' : 'Aktivieren', c.enabled ? ButtonStyle.Danger : ButtonStyle.Success)), back()];
   if (section === 'tickets') return ticketWizard(c, s, guild);
   if (section === 'ai') components.splice(1, 0, row(button('ai-test', 'KI testen'), button('ai-options', 'Antwortmodus')));
+  if (section === 'branding') components.splice(1, 0, row(button('branding-page', 'Weitere Bilder'), button('brand-profile', 'Bot-Profil')));
   if (section === 'welcome') components.splice(1, 0, row(button('edit-leave', 'Leave gestalten')));
+  if (section === 'applications') components.splice(1, 0, row(button('application-manage', 'Bewerbungstypen verwalten')));
   if (section === 'verify') components.splice(1, 0, row(new ChannelSelectMenuBuilder().setCustomId('setup:pick:verify:channelId').setPlaceholder('Verify-Kanal').addChannelTypes(ChannelType.GuildText)),
     row(new RoleSelectMenuBuilder().setCustomId('setup:pick:verify:roleId').setPlaceholder('Verify-Rolle')));
   if (section === 'applications') components.splice(1, 0, row(new ChannelSelectMenuBuilder().setCustomId('setup:pick:applications:channelId').setPlaceholder('Bewerbungs-Panel').addChannelTypes(ChannelType.GuildText)),
@@ -57,7 +61,7 @@ function ticketWizard(c = {}, settings = {}, guild = { name: 'Server' }) {
   const embeds = panel(guild, settings, { title: '🎫 Ticket-Setup', description: summary.join('\n'),
     fields: step >= 3 ? cats.slice(0, 15).map(v => ({ name: `${v.emoji || '🎫'} ${v.name}${v.enabled === false ? ' (inaktiv)' : ''}`, value: v.description || '—', inline: true })) : [] });
   const components = [];
-  if (step === 1) components.push(row(button('type-search', 'Servertyp suchen', ButtonStyle.Primary), button('type-page:0', 'Alle Typen')));
+  if (step === 1) components.push(row(button('type-search', 'Servertyp suchen', ButtonStyle.Primary), button('type-page:all:0', 'Alle Typen')));
   if (step === 2) components.push(row(button('describe', 'Server beschreiben', ButtonStyle.Primary)));
   if (step === 3) components.push(row(button('suggest', 'Vorschläge erzeugen', ButtonStyle.Primary)));
   if (step === 4) components.push(row(button('category-add', 'Kategorie hinzufügen', ButtonStyle.Primary), button('category-edit', 'Kategorien verwalten')),
@@ -73,14 +77,14 @@ function ticketWizard(c = {}, settings = {}, guild = { name: 'Server' }) {
   components.push(row(button('step:back', '← Zurück'), button('step:next', 'Weiter →', ButtonStyle.Primary), button('home', 'Übersicht')));
   return { embeds, components };
 }
-function typePicker(query = '', page = 0) {
+function typePicker(query = '', page = 0, token = 'all') {
   const matches = SERVER_TYPES.filter(v => `${v.name} ${v.family}`.toLowerCase().includes(query.toLowerCase()));
   const total = Math.max(1, Math.ceil(matches.length / 25)), current = Math.max(0, Math.min(page, total - 1));
   const choices = matches.slice(current * 25, (current + 1) * 25);
   return { content: `${matches.length} passende Servertypen · Seite ${current + 1}/${total}`,
     components: [row(new StringSelectMenuBuilder().setCustomId('setup:type-select').setPlaceholder('Servertyp wählen').addOptions(
       choices.length ? choices.map(v => ({ label: v.name.slice(0, 100), value: v.id, description: v.family })) : [{ label: 'Keine Treffer', value: 'none' } ])),
-    row(button(`type-page:${Math.max(0, current - 1)}`, '←'), button(`type-page:${Math.min(total - 1, current + 1)}`, '→'), button('type-search', 'Suche'))], ephemeral: true };
+    row(button(`type-page:${token}:${Math.max(0, current - 1)}`, '←'), button(`type-page:${token}:${Math.min(total - 1, current + 1)}`, '→'), button('type-search', 'Suche'))], ephemeral: true };
 }
 function brandingModal(c = {}, page = 1) {
   const fields = page === 1 ? [input('projectName', 'Server-/Projektname', c.projectName, undefined, 80),
@@ -154,8 +158,13 @@ async function handleSetupInteraction(i) {
     if (action === 'home') { const s = await getGuildSettings(i.guildId); await i.update({ embeds: [baseEmbed(i.guild, s)], components: [setupMenu()] }); return true; }
     if (action === 'menu') { await view(i, i.values[0], await getGuildSettings(i.guildId)); return true; }
     if (action === 'type-search') { await i.showModal(modal('search', 'Servertyp suchen', [input('query', 'Name oder Stichwort', '', undefined, 80)])); return true; }
-    if (action === 'search' && i.isModalSubmit()) { await i.reply(typePicker(i.fields.getTextInputValue('query'))); return true; }
-    if (action === 'type-page') { await i.reply(typePicker('', Number(parts[2]))); return true; }
+    if (action === 'search' && i.isModalSubmit()) { const token = Math.random().toString(36).slice(2, 12);
+      searches.set(token, { userId: i.user.id, query: i.fields.getTextInputValue('query'), expires: Date.now() + 900000 });
+      await i.reply(typePicker(searches.get(token).query, 0, token)); return true; }
+    if (action === 'type-page') { const saved = searches.get(parts[2]);
+      if (parts[2] !== 'all' && (!saved || saved.userId !== i.user.id || saved.expires < Date.now())) throw new Error('Suche abgelaufen. Bitte erneut suchen.');
+      const payload = typePicker(saved?.query || '', Number(parts[3] || 0), parts[2]);
+      await i.update({ content: payload.content, components: payload.components }); return true; }
     if (action === 'type-select' && i.isStringSelectMenu()) {
       const type = SERVER_TYPES.find(v => v.id === i.values[0]); if (!type) { await i.reply({ content: 'Kein Servertyp gewählt.', ephemeral: true }); return true; }
       const s = await patch(i, 'tickets', { serverType: type.id, step: 2 }); await i.reply({ ...ticketWizard(s.tickets, s, i.guild), ephemeral: true }); return true;
@@ -199,6 +208,7 @@ async function handleSetupInteraction(i) {
     if (action === 'category-save' && i.isModalSubmit()) {
       const f = readFields(i), s = await getGuildSettings(i.guildId), old = s.tickets.categories || [], id = parts[2] || f.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30);
       if (!id) throw new Error('Kategorie-Name fehlt.');
+      if (old.length >= 25 && !old.find(v => v.id === id)) throw new Error('Maximal 25 Ticket-Kategorien pro Panel.');
       const existing = old.find(v => v.id === id) || {};
       const cat = { ...existing, id, name: f.name.slice(0, 80), emoji: f.emoji || '🎫', description: f.description.slice(0, 100),
         prefix: (f.prefix || id).replace(/[^a-z0-9-]/gi, '-').slice(0, 30), enabled: f.enabled !== 'nein',
@@ -212,6 +222,31 @@ async function handleSetupInteraction(i) {
     if (action === 'pick') { const section = parts[2], field = parts[3]; const s = await patch(i, section, { [field]: i.values[0] || null }); await view(i, section, s); return true; }
     if (action === 'activate-ticket') { await activate(i, 'tickets', await getGuildSettings(i.guildId)); return true; }
     if (action === 'edit') { const s = await getGuildSettings(i.guildId); await i.showModal(editModal(parts[2], s[parts[2]])); return true; }
+    if (action === 'application-manage') { const s = await getGuildSettings(i.guildId), types = s.applications?.types || [];
+      if (!types.length) throw new Error('Erstelle zuerst einen Bewerbungstyp über Bearbeiten.');
+      await i.reply({ content: 'Bewerbungstyp auswählen', ephemeral: true, components: [row(new StringSelectMenuBuilder()
+        .setCustomId('setup:application-select').addOptions(types.slice(0, 25).map(v => ({ label: v.name.slice(0, 100), value: v.id }))))] }); return true; }
+    if (action === 'application-select') { const typeId = i.values[0]; await i.update({ content: `Bewerbungstyp ${typeId}`, components: [row(
+      button(`application-extra:${typeId}`, 'Rolle & Kanäle'), button(`application-toggle:${typeId}`, 'Aktivieren/Deaktivieren'),
+      button(`application-remove:${typeId}`, 'Entfernen', ButtonStyle.Danger))] }); return true; }
+    if (action === 'application-extra') { const s = await getGuildSettings(i.guildId), type = s.applications?.types?.find(v => v.id === parts[2]);
+      if (type) await i.showModal(modal(`application-save:${type.id}`, 'Bewerbung: Zuständigkeit', [
+        input('roleId', 'Zuständige Rolle ID', type.roleId, undefined, 20), input('parentId', 'Discord-Kategorie ID', type.parentId, undefined, 20),
+        input('logChannelId', 'Logkanal ID', type.logChannelId, undefined, 20), input('questions', 'Fragen je Zeile', (type.questions || []).map(q => q.label).join('\n'), TextInputStyle.Paragraph, 1500)])); return true; }
+    if (action === 'application-save' && i.isModalSubmit()) { const f = readFields(i), s = await getGuildSettings(i.guildId), types = s.applications.types.map(v => v.id === parts[2] ? {
+      ...v, roleId: f.roleId, parentId: f.parentId, logChannelId: f.logChannelId,
+      questions: f.questions.split('\n').map((label, n) => ({ id: `q${n + 1}`, label: label.trim().slice(0, 45) })).filter(q => q.label).slice(0, 20) } : v);
+      const next = await patch(i, 'applications', { types }); await i.reply({ ...systemView(i.guild, next, 'applications'), ephemeral: true }); return true; }
+    if (action === 'application-toggle' || action === 'application-remove') { const s = await getGuildSettings(i.guildId), types = s.applications.types || [];
+      const next = await patch(i, 'applications', { types: action === 'application-remove' ? types.filter(v => v.id !== parts[2]) : types.map(v => v.id === parts[2] ? { ...v, enabled: v.enabled === false } : v) });
+      await view(i, 'applications', next); return true; }
+    if (action === 'brand-profile') { await i.showModal(modal('profile-save', 'Serverbezogenes Bot-Profil', [
+      input('nick', 'Bot-Name auf diesem Server', '', undefined, 32), input('bio', 'Bot-Bio', '', TextInputStyle.Paragraph, 190)])); return true; }
+    if (action === 'profile-save' && i.isModalSubmit()) { const f = readFields(i), body = {};
+      if (f.nick) body.nick = f.nick; if (f.bio) body.bio = f.bio;
+      if (!Object.keys(body).length) throw new Error('Bitte Name oder Bio eingeben.');
+      await i.client.rest.patch(Routes.guildMember(i.guildId, '@me'), { body });
+      await i.reply({ content: 'Bot-Profil gespeichert. Für Profilbild und Bot-Banner nutze `/branding einstellen` mit einem Bild-Anhang.', ephemeral: true }); return true; }
     if (action === 'edit-leave') { const s = await getGuildSettings(i.guildId); await i.showModal(modal('config:leave', 'Leave gestalten', [
       input('title', 'Titel', s.leave?.title || 'Auf Wiedersehen'), input('description', 'Text mit Variablen', s.leave?.description || '%USERNAME% hat den Server verlassen.', TextInputStyle.Paragraph, 1500),
       input('channelId', 'Leave-Kanal ID', s.leave?.channelId, undefined, 20), input('imageUrl', 'Bild URL', s.leave?.imageUrl, undefined, 500),
@@ -222,14 +257,14 @@ async function handleSetupInteraction(i) {
       await i.update({ content: `KI-Modus: ${mode}`, components: [] }); return true; }
     if (action === 'branding-page') { const s = await getGuildSettings(i.guildId); await i.showModal(brandingModal(s.branding, 2)); return true; }
     if (action === 'branding' && i.isModalSubmit()) { const f = readFields(i); validateUrls(f);
-      const s = await patch(i, 'branding', f); await i.reply({ ...systemView(i.guild, s, 'branding'), ephemeral: true,
-        components: [row(button('branding-page', 'Weitere Bilder')), ...systemView(i.guild, s, 'branding').components] }); return true; }
+      const s = await patch(i, 'branding', f); await i.reply({ ...systemView(i.guild, s, 'branding'), ephemeral: true }); return true; }
     if (action === 'config' && i.isModalSubmit()) {
       const section = parts[2], f = readFields(i); validateUrls(f);
       if (section === 'verify' && !['retry', 'timeout', 'kick'].includes(f.failureAction)) throw new Error('Aktion muss retry, timeout oder kick sein.');
       if (section === 'logs' && !['basis', 'erweitert', 'alles'].includes(f.profile)) throw new Error('Profil muss basis, erweitert oder alles sein.');
       if (section === 'applications') {
         const s = await getGuildSettings(i.guildId), types = s.applications.types || [], id = f.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30);
+        if (types.length >= 25 && !types.find(v => v.id === id)) throw new Error('Maximal 25 Bewerbungstypen pro Panel.');
         const type = { id, name: f.name, description: f.description, imageUrl: f.imageUrl,
           questions: f.questions.split('\n').map((label, n) => ({ id: `q${n + 1}`, label: label.trim().slice(0, 45) })).filter(q => q.label).slice(0, 20), enabled: true };
         await patch(i, section, { types: [...types.filter(v => v.id !== id), type] });

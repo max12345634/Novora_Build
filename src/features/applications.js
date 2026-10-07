@@ -66,10 +66,13 @@ async function handleApplicationInteraction(i) {
     const record = { userId: i.user.id, typeId: type.id, state: 'open', createdAt: new Date().toISOString(), answers: d.answers };
     await updateGuildSettings(i.guildId, old => ({ applications: { ...old.applications, records: { ...old.applications.records, [ch.id]: record } } }));
     await ch.send({ content: `<@${i.user.id}> <@&${roleId}>`, embeds: panel(i.guild, s, { title: `📝 ${type.name}`, description: `Bewerbung von <@${i.user.id}>`, imageUrl: type.imageUrl,
-      fields: questions.slice(0, 20).map(q => ({ name: q.label, value: (d.answers[q.id] || '—').slice(0, 1024) })) }),
+      fields: questions.slice(0, 5).map(q => ({ name: q.label, value: (d.answers[q.id] || '—').slice(0, 700) })) }),
       components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('application:accept').setLabel('Annehmen').setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId('application:reject').setLabel('Ablehnen').setStyle(ButtonStyle.Danger))],
       allowedMentions: { users: [i.user.id], roles: [roleId] } });
+    for (let start = 5; start < questions.length; start += 5) await ch.send({ embeds: panel(i.guild, s, {
+      title: `Weitere Antworten · ${type.name}`, description: `Fragen ${start + 1}–${Math.min(start + 5, questions.length)}`,
+      fields: questions.slice(start, start + 5).map(q => ({ name: q.label, value: (d.answers[q.id] || '—').slice(0, 700) })) }), allowedMentions: { parse: [] } });
     await i.editReply(`✅ Bewerbung erstellt: ${ch}`); await sendLog(i.guild, 'Bewerbung erstellt', `${type.name} · ${ch} · <@${i.user.id}>`, type.logChannelId || c.logChannelId); return true;
   }
   if (i.isButton() && ['application:accept', 'application:reject'].includes(i.customId)) {
