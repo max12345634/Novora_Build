@@ -32,3 +32,13 @@ test('Old guild settings are migrated without dropping unrelated features', asyn
     assert.equal(old.applications.types[0].id, 'team');
   } finally { await fs.rm(folder, { recursive: true, force: true }); }
 });
+
+test('AI answer channel settings stay isolated per guild', async () => {
+  await fs.mkdir(folder, { recursive: true });
+  try {
+    await updateGuildSettings('guildA', { ai: { enabled: true, channelEnabled: true, channelId: '111111111111111111' } });
+    await updateGuildSettings('guildB', { ai: { enabled: true, channelEnabled: false, channelId: '222222222222222222' } });
+    assert.equal((await getGuildSettings('guildA')).ai.channelId, '111111111111111111');
+    assert.equal((await getGuildSettings('guildB')).ai.channelId, '222222222222222222');
+  } finally { await fs.rm(folder, { recursive: true, force: true }); }
+});

@@ -2,9 +2,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { GatewayIntentBits } = require('discord.js');
 const { collectCommandFiles } = require('../src/loaders/commands');
-const { createCaptchaImage } = require('../src/features/verify');
+const { createCaptchaImage, createCaptchaEmbed } = require('../src/features/verify');
 const { makeForm } = require('../src/features/orders');
-const { setupMenu, ticketWizard, typePicker, categoryModal, systemView, designModal, categoryManage, applicationManage, assetUploadModal } = require('../src/features/setup');
+const { setupMenu, ticketWizard, typePicker, categoryModal, systemView, designModal, editModal, categoryManage, applicationManage, assetUploadModal } = require('../src/features/setup');
 const { applicationPanel } = require('../src/features/applications');
 const { createPanelEmbed, createVerifyButton } = require('../src/features/verify');
 const { createLifecycleEmbeds } = require('../src/features/welcome');
@@ -78,6 +78,8 @@ async function main() {
   assert(Buffer.isBuffer(png) && png.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])), 'Captcha ist kein PNG');
   checkModal(makeForm()); checkModal(applicationModal());
   checkModal(categoryModal());
+  checkModal(editModal('ai', { faq: [], links: [] }));
+  checkModal(editModal('branding', {}));
   for (const scope of ['branding', 'tickets', 'verify', 'welcome', 'leave', 'applications', 'category', 'application-type']) checkModal(assetUploadModal(scope, 'test-category'));
   assert(SERVER_TYPES.length >= 100 && new Set(SERVER_TYPES.map(v => v.id)).size === SERVER_TYPES.length, 'Servertypen fehlen oder IDs doppelt');
   for (const type of SERVER_TYPES) {
@@ -96,6 +98,7 @@ async function main() {
   checkMessage(categoryManage(categories[0]));
   checkMessage(applicationManage({ id: 'staff', name: 'Staff', enabled: true }));
   checkMessage({ embeds: createPanelEmbed(guild, { title: 'Verifizierung' }, settings), components: [createVerifyButton()] });
+  checkMessage({ embeds: createCaptchaEmbed(guild, settings) });
   checkMessage({ embeds: applicationPanel(guild, settings) });
   const member = { guild, id: '123456789012345678', user: { username: 'Test', createdAt: new Date() }, joinedAt: new Date() };
   checkMessage({ embeds: createLifecycleEmbeds(member, { title: 'Hallo %USERNAME%', description: '%MENTION%' }, 5, settings) });

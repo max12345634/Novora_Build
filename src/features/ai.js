@@ -78,25 +78,29 @@ async function channelContext(message) {
 }
 
 async function answerMessage(message, settings, context = '') {
+  const { panel } = require('../utils/theme');
   const key = `${message.guild.id}:${message.channel.id}:${message.author.id}`, now = Date.now();
   const previous = recentAnswers.get(key) || 0;
   if (now - previous < 8000) return;
   recentAnswers.set(key, now);
   if (recentAnswers.size > 2000) for (const [entry, time] of recentAnswers) if (now - time > 60000) recentAnswers.delete(entry);
   if (sensitive(message.content)) {
-    await message.reply({ content: 'Das sollte ein Teammitglied prüfen. Ich gebe dein Anliegen an das Team weiter.', allowedMentions: { parse: [] } });
+    await message.reply({ embeds: panel(message.guild, settings, { title: '👥 Ein Teammitglied übernimmt',
+      description: 'Das Anliegen sollte ein Mensch prüfen. Ich gebe es an das Team weiter.' }), allowedMentions: { parse: [] } });
     const roleId = settings.ai?.teamRoleId || settings.tickets?.teamRoleId;
     if (roleId) await message.channel.send({ content: `<@&${roleId}> Bitte übernehmt diese Anfrage.`, allowedMentions: { roles: [roleId] } });
     return;
   }
   const answer = await testAnswer(settings, message.content, context);
   if (answer === UNKNOWN || /Dazu sollte ein Teammitglied weiterhelfen/i.test(answer)) {
-    await message.reply({ content: 'Dazu finde ich keine verlässliche Information. Ein Teammitglied kann dir weiterhelfen.', allowedMentions: { parse: [] } });
+    await message.reply({ embeds: panel(message.guild, settings, { title: '👥 Das Team hilft weiter',
+      description: 'Dazu finde ich keine verlässliche Information. Ein Teammitglied kann dir weiterhelfen.' }), allowedMentions: { parse: [] } });
     const roleId = settings.ai?.teamRoleId || settings.tickets?.teamRoleId;
     if (roleId) await message.channel.send({ content: `<@&${roleId}> Eine Frage benötigt eure Hilfe.`, allowedMentions: { roles: [roleId] } });
     return;
   }
-  await message.reply({ content: `🤖 ${answer}`, allowedMentions: { parse: [] } });
+  await message.reply({ embeds: panel(message.guild, settings, { title: `🤖 ${settings.branding?.projectName || message.guild.name} · Antwort`,
+    description: answer }), allowedMentions: { parse: [] } });
 }
 
 async function assistTicket(message) {

@@ -3,7 +3,6 @@ const {
   AttachmentBuilder,
   ButtonBuilder,
   ButtonStyle,
-  EmbedBuilder,
   PermissionFlagsBits,
   StringSelectMenuBuilder
 } = require('discord.js');
@@ -137,12 +136,10 @@ function createVerifyButton() {
   );
 }
 
-function createCaptchaEmbed() {
-  return new EmbedBuilder()
-    .setColor(0x5865f2)
-    .setTitle('Bitte bestaetige, dass du ein Mensch bist')
-    .setDescription('Lies den Code im Bild und waehle unten die passende Option aus.')
-    .setImage('attachment://novora-captcha.png');
+function createCaptchaEmbed(guild, allSettings = {}) {
+  return panel(guild, allSettings, { title: '🔐 Bitte bestätige, dass du ein Mensch bist',
+    description: 'Lies den Code im Bild und wähle unten die passende Option aus.',
+    imageUrl: 'attachment://novora-captcha.png' });
 }
 
 function createCaptchaOptions(expectedCode) {
@@ -177,7 +174,7 @@ async function handleVerifyButton(interaction) {
   const token = randomBytes(12).toString('hex');
   challenges.set(token, { code, userId: interaction.user.id, guildId: interaction.guildId, expires: Date.now() + 5 * 60_000 });
   await interaction.reply({
-    embeds: [createCaptchaEmbed()],
+    embeds: createCaptchaEmbed(interaction.guild, settings),
     files: [createCaptchaImage(code)],
     components: [createCaptchaSelect(code, token)],
     ephemeral: true
