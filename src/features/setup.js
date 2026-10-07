@@ -40,7 +40,7 @@ function systemView(guild, s, section) {
     description: 'Konfiguriere die Einstellungen. Prüfe die Vorschau vor der Veröffentlichung.', fields });
   const components = [row(button(`edit:${section}`, 'Bearbeiten', ButtonStyle.Primary),
     button(`preview:${section}`, 'Vorschau'), button(`toggle:${section}`, c.enabled ? 'Deaktivieren' : 'Aktivieren', c.enabled ? ButtonStyle.Danger : ButtonStyle.Success),
-    button(`design:${section}`, 'Design & Bilder')), back()];
+    button(`design:${section}`, 'Design & Bilder'), button(`reset:${section}`, 'Zurücksetzen', ButtonStyle.Danger)), back()];
   if (section === 'tickets') return ticketWizard(c, s, guild);
   if (section === 'ai') components.splice(1, 0, row(button('ai-test', 'KI testen'), button('ai-options', 'Antwortmodus'), button('ai-analyze', 'Server analysieren')));
   if (section === 'branding') components.splice(1, 0, row(button('branding-page', 'Weitere Bilder'), button('brand-profile', 'Bot-Profil')));
@@ -74,7 +74,11 @@ function ticketWizard(c = {}, settings = {}, guild = { name: 'Server' }) {
     row(new ChannelSelectMenuBuilder().setCustomId('setup:pick:tickets:logChannelId').setPlaceholder('Logkanal').addChannelTypes(ChannelType.GuildText).setMinValues(0)));
   if (step === 6) {
     try { embeds.push(...panelPayload(guild, settings).embeds); } catch { /* Vor Konfiguration ist keine Panel-Vorschau verfügbar. */ }
-    components.push(row(button('activate-ticket', 'Panel veröffentlichen', ButtonStyle.Success), button('edit:tickets', 'Panel-Texte'), button('design:tickets', 'Design & Bilder')));
+    components.push(row(button('activate-ticket', 'Panel veröffentlichen', ButtonStyle.Success), button('edit:tickets', 'Panel-Texte'),
+      button('design:tickets', 'Design & Bilder'), button('reset:tickets', 'Zurücksetzen', ButtonStyle.Danger)));
+    components.push(row(new ChannelSelectMenuBuilder().setCustomId('setup:pick:tickets:ratingLogChannelId')
+      .setPlaceholder('Bewertungs-Logkanal (optional)').addChannelTypes(ChannelType.GuildText).setMinValues(0)));
+    components.push(row(button('exclusive-claim', c.exclusiveClaim ? 'Team kann mitschreiben: Nein' : 'Team kann mitschreiben: Ja')));
   }
   components.push(row(button('step:back', '← Zurück'), button('step:next', 'Weiter →', ButtonStyle.Primary), button('home', 'Übersicht')));
   return { embeds, components };
@@ -88,6 +92,20 @@ function typePicker(query = '', page = 0, token = 'all') {
       choices.length ? choices.map(v => ({ label: v.name.slice(0, 100), value: v.id, description: v.family })) : [{ label: 'Keine Treffer', value: 'none' } ])),
     row(button(`type-page:${token}:${Math.max(0, current - 1)}`, '←'), button(`type-page:${token}:${Math.min(total - 1, current + 1)}`, '→'), button('type-search', 'Suche'))], ephemeral: true };
 }
+function categoryManage(cat) { return { content: `${cat.emoji || '🎫'} ${cat.name} · ${cat.enabled === false ? 'inaktiv' : 'aktiv'}`,
+  components: [row(button(`category-open:${cat.id}`, 'Bearbeiten'), button(`category-extra:${cat.id}`, 'Limits'),
+    button(`category-advanced:${cat.id}`, 'Pings & Cooldown'),
+    button(`category-toggle:${cat.id}`, cat.enabled === false ? 'Aktivieren' : 'Deaktivieren'),
+    button(`category-remove:${cat.id}`, 'Entfernen', ButtonStyle.Danger)),
+  row(new RoleSelectMenuBuilder().setCustomId(`setup:category-pick:${cat.id}:roleId`).setPlaceholder('Supportrolle für diese Kategorie')),
+  row(new ChannelSelectMenuBuilder().setCustomId(`setup:category-pick:${cat.id}:parentId`).setPlaceholder('Discord-Kategorie').addChannelTypes(ChannelType.GuildCategory).setMinValues(0)),
+  row(new ChannelSelectMenuBuilder().setCustomId(`setup:category-pick:${cat.id}:logChannelId`).setPlaceholder('Logkanal').addChannelTypes(ChannelType.GuildText).setMinValues(0))] }; }
+function applicationManage(type) { return { content: `📝 ${type.name} · ${type.enabled === false ? 'inaktiv' : 'aktiv'}`,
+  components: [row(button(`application-extra:${type.id}`, 'Fragen bearbeiten'), button(`application-toggle:${type.id}`, 'Aktivieren/Deaktivieren'),
+    button(`application-remove:${type.id}`, 'Entfernen', ButtonStyle.Danger)),
+  row(new RoleSelectMenuBuilder().setCustomId(`setup:application-pick:${type.id}:roleId`).setPlaceholder('Zuständige Rolle')),
+  row(new ChannelSelectMenuBuilder().setCustomId(`setup:application-pick:${type.id}:parentId`).setPlaceholder('Private Kanal-Kategorie').addChannelTypes(ChannelType.GuildCategory).setMinValues(0)),
+  row(new ChannelSelectMenuBuilder().setCustomId(`setup:application-pick:${type.id}:logChannelId`).setPlaceholder('Entscheidungs-Logkanal').addChannelTypes(ChannelType.GuildText).setMinValues(0))] }; }
 function brandingModal(c = {}, page = 1) {
   const fields = page === 1 ? [input('projectName', 'Server-/Projektname', c.projectName, undefined, 80),
     input('primaryColor', 'Hauptfarbe (z. B. #5865F2)', c.primaryColor, undefined, 7),
@@ -188,6 +206,8 @@ async function handleSetupInteraction(i) {
     if (action === 'description' && i.isModalSubmit()) { const s = await patch(i, 'tickets', { serverDescription: i.fields.getTextInputValue('text'), step: 3 }); await i.reply({ ...ticketWizard(s.tickets, s, i.guild), ephemeral: true }); return true; }
     if (action === 'suggest') { const s = await getGuildSettings(i.guildId), cs = suggest(s.tickets.serverType, s.tickets.serverDescription);
       const next = await patch(i, 'tickets', { categories: cs, step: 4 }); await view(i, 'tickets', next); return true; }
+    if (action === 'exclusive-claim') { const s = await getGuildSettings(i.guildId);
+      const next = await patch(i, 'tickets', { exclusiveClaim: !s.tickets.exclusiveClaim }); await view(i, 'tickets', next); return true; }
     if (action === 'category-add' || action === 'category-edit' || action === 'category-move') {
       const c = (await getGuildSettings(i.guildId)).tickets;
       if (action === 'category-move') { await i.showModal(modal('category-order', 'Kategorien sortieren', [input('ids', 'IDs in gewünschter Reihenfolge, Komma', categories(c).map(v => v.id).join(','), TextInputStyle.Paragraph, 500, true)])); return true; }
@@ -198,11 +218,11 @@ async function handleSetupInteraction(i) {
     }
     if (action === 'category-select') { const c = (await getGuildSettings(i.guildId)).tickets;
       const cat = (c.categories || []).find(v => v.id === i.values[0]); if (!cat) return true;
-      await i.update({ content: `${cat.emoji || '🎫'} ${cat.name} · ${cat.enabled === false ? 'inaktiv' : 'aktiv'}`, components: [row(
-        button(`category-open:${cat.id}`, 'Bearbeiten'), button(`category-extra:${cat.id}`, 'Rollen & Limits'),
-        button(`category-advanced:${cat.id}`, 'Pings & Cooldown'),
-        button(`category-toggle:${cat.id}`, cat.enabled === false ? 'Aktivieren' : 'Deaktivieren'),
-        button(`category-remove:${cat.id}`, 'Entfernen', ButtonStyle.Danger))] }); return true; }
+      await i.update(categoryManage(cat)); return true; }
+    if (action === 'category-pick') { const [, , id, field] = parts, s = await getGuildSettings(i.guildId);
+      const cats = (s.tickets.categories || []).map(v => v.id === id ? { ...v, [field]: i.values[0] || null } : v);
+      const next = await patch(i, 'tickets', { categories: cats });
+      await i.update(categoryManage(next.tickets.categories.find(v => v.id === id))); return true; }
     if (action === 'category-open') { const c = (await getGuildSettings(i.guildId)).tickets, cat = c.categories?.find(v => v.id === parts[2]);
       if (cat) await i.showModal(categoryModal(cat)); return true; }
     if (action === 'category-extra') { const c = (await getGuildSettings(i.guildId)).tickets, cat = c.categories?.find(v => v.id === parts[2]);
@@ -243,6 +263,12 @@ async function handleSetupInteraction(i) {
       if (ids.length !== old.length || new Set(ids).size !== old.length || ids.some(v => !old.find(c => c.id === v))) throw new Error('Gib jede Kategorie-ID genau einmal an.');
       const next = await patch(i, 'tickets', { categories: ids.map(id => old.find(v => v.id === id)) }); await i.reply({ ...ticketWizard(next.tickets, next, i.guild), ephemeral: true }); return true; }
     if (action === 'pick') { const section = parts[2], field = parts[3]; const s = await patch(i, section, { [field]: i.values[0] || null }); await view(i, section, s); return true; }
+    if (action === 'reset') { await i.reply({ content: `Soll ${parts[2]} wirklich zurückgesetzt und deaktiviert werden? Laufende Tickets/Bewerbungen bleiben gespeichert.`, ephemeral: true,
+      components: [row(button(`reset-confirm:${parts[2]}`, 'Ja, zurücksetzen', ButtonStyle.Danger))] }); return true; }
+    if (action === 'reset-confirm') { const section = parts[2];
+      if (!menuItems.some(v => v[0] === section)) throw new Error('Unbekanntes System.');
+      await updateGuildSettings(i.guildId, old => ({ [section]: ['tickets', 'applications'].includes(section) ? { enabled: false, records: old[section]?.records || {} } : { enabled: false } }));
+      await i.update({ content: `${section} wurde zurückgesetzt.`, components: [] }); return true; }
     if (action === 'activate-ticket') { await activate(i, 'tickets', await getGuildSettings(i.guildId)); return true; }
     if (action === 'edit') { const s = await getGuildSettings(i.guildId); await i.showModal(editModal(parts[2], s[parts[2]])); return true; }
     if (action === 'design') { const s = await getGuildSettings(i.guildId); await i.showModal(designModal(parts[2], s[parts[2]])); return true; }
@@ -254,9 +280,12 @@ async function handleSetupInteraction(i) {
       if (!types.length) throw new Error('Erstelle zuerst einen Bewerbungstyp über Bearbeiten.');
       await i.reply({ content: 'Bewerbungstyp auswählen', ephemeral: true, components: [row(new StringSelectMenuBuilder()
         .setCustomId('setup:application-select').addOptions(types.slice(0, 25).map(v => ({ label: v.name.slice(0, 100), value: v.id }))))] }); return true; }
-    if (action === 'application-select') { const typeId = i.values[0]; await i.update({ content: `Bewerbungstyp ${typeId}`, components: [row(
-      button(`application-extra:${typeId}`, 'Rolle & Kanäle'), button(`application-toggle:${typeId}`, 'Aktivieren/Deaktivieren'),
-      button(`application-remove:${typeId}`, 'Entfernen', ButtonStyle.Danger))] }); return true; }
+    if (action === 'application-select') { const s = await getGuildSettings(i.guildId), type = s.applications?.types?.find(v => v.id === i.values[0]);
+      if (type) await i.update(applicationManage(type)); return true; }
+    if (action === 'application-pick') { const [, , id, field] = parts, s = await getGuildSettings(i.guildId);
+      const types = (s.applications.types || []).map(v => v.id === id ? { ...v, [field]: i.values[0] || null } : v);
+      const next = await patch(i, 'applications', { types });
+      await i.update(applicationManage(next.applications.types.find(v => v.id === id))); return true; }
     if (action === 'application-extra') { const s = await getGuildSettings(i.guildId), type = s.applications?.types?.find(v => v.id === parts[2]);
       if (type) await i.showModal(modal(`application-save:${type.id}`, 'Bewerbung: Zuständigkeit', [
         input('roleId', 'Zuständige Rolle ID', type.roleId, undefined, 20), input('parentId', 'Discord-Kategorie ID', type.parentId, undefined, 20),
@@ -334,4 +363,4 @@ function categoryModal(c = {}) { return modal(`category-save:${c.id || ''}`, c.i
   input('description', 'Beschreibung', c.description, undefined, 100),
   input('prefix', 'Ticket-Kanal-Präfix', c.prefix, undefined, 30),
   input('questions', 'Formularfragen je Zeile (max. 20)', (c.questions || []).map(q => q.label).join('\n'), TextInputStyle.Paragraph, 1000) ]); }
-module.exports = { baseEmbed, setupMenu, handleSetupInteraction, ticketWizard, typePicker, categoryModal, systemView, designModal };
+module.exports = { baseEmbed, setupMenu, handleSetupInteraction, ticketWizard, typePicker, categoryModal, systemView, designModal, categoryManage, applicationManage };

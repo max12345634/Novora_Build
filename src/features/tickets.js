@@ -31,7 +31,8 @@ function controls(ticket) {
     { label: 'Informationen', value: 'info', emoji: 'ℹ️' }, { label: 'Umbenennen', value: 'rename', emoji: '✏️' },
     { label: 'Kategorie ändern', value: 'category', emoji: '🏷️' }, { label: 'Priorität ändern', value: 'priority', emoji: '🚩' },
     { label: 'Nutzer hinzufügen', value: 'add', emoji: '➕' }, { label: 'Nutzer entfernen', value: 'remove', emoji: '➖' },
-    { label: 'Staff-Notiz', value: 'note', emoji: '🗒️' }, { label: 'KI-Antwort vorschlagen', value: 'ai', emoji: '🤖' },
+    { label: 'Staff-Notiz schreiben', value: 'note', emoji: '🗒️' }, { label: 'Staff-Notizen ansehen', value: 'notes', emoji: '📋' },
+    { label: 'KI-Antwort vorschlagen', value: 'ai', emoji: '🤖' },
     { label: 'Ticket löschen', value: 'delete', emoji: '🗑️' }
   ))];
 }
@@ -73,7 +74,8 @@ const ticketFor = (settings, channel) => settings.tickets?.records?.[channel.id]
   return old && { ...old, id: old.caseId, categoryId: 'support', createdAt: channel.createdAt?.toISOString(), ownerId: old.ownerId === 'none' ? null : old.ownerId };
 })();
 const isStaff = (i, c, category) => Boolean(i.memberPermissions?.has(PermissionFlagsBits.ManageChannels) ||
-  i.member?.roles?.cache?.has(category?.roleId || c.teamRoleId));
+  i.member?.roles?.cache?.has(category?.roleId || c.teamRoleId) ||
+  Array.isArray(i.member?.roles) && i.member.roles.includes(category?.roleId || c.teamRoleId));
 async function storeTicket(i, ticket) {
   await updateGuildSettings(i.guildId, old => ({ tickets: { ...old.tickets, records: { ...old.tickets.records, [i.channelId]: ticket } } }));
 }
@@ -226,8 +228,14 @@ async function handleTicketInteraction(i) {
   if (i.isButton() && i.customId === 'ticket:claim') {
     if (!staff) { await i.reply({ content: 'Nur das Support-Team kann Tickets übernehmen.', ephemeral: true }); return true; }
     if (t.ownerId && t.ownerId !== i.user.id && !i.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) { await i.reply({ content: 'Das Ticket ist bereits übernommen.', ephemeral: true }); return true; }
-    t.ownerId = t.ownerId ? null : i.user.id; t.claimedAt = t.ownerId ? new Date().toISOString() : null; await storeTicket(i, t);
-    if (c.exclusiveClaim && (cat?.roleId || c.teamRoleId)) await i.channel.permissionOverwrites.edit(cat?.roleId || c.teamRoleId, { SendMessages: !t.ownerId });
+    const previousOwner = t.ownerId;
+    t.ownerId = t.ownerId ? null : i.user.id; t.claimedAt = t.ownerId ? new Date().toISOString() : null;
+    if (c.exclusiveClaim && (cat?.roleId || c.teamRoleId)) {
+      if (t.ownerId) await i.channel.permissionOverwrites.edit(t.ownerId, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true });
+      await i.channel.permissionOverwrites.edit(cat?.roleId || c.teamRoleId, { SendMessages: !t.ownerId });
+      if (!t.ownerId && previousOwner && previousOwner !== t.requesterId) await i.channel.permissionOverwrites.delete(previousOwner).catch(() => {});
+    }
+    await storeTicket(i, t);
     await i.update({ components: controls(t) }); await i.followUp({ content: t.ownerId ? `✅ Übernommen von <@${t.ownerId}>.` : 'Ticket wieder freigegeben.' });
     await sendLog(i.guild, 'Ticket-Übernahme', `#${t.caseId} · ${t.ownerId || 'freigegeben'} · ${t.claimedAt || new Date().toISOString()}`, c.logChannelId); return true;
   }
@@ -257,6 +265,8 @@ async function handleTicketInteraction(i) {
     const action = i.values[0];
     if (action === 'info') { await i.reply({ embeds: info(i.guild, settings, t), ephemeral: true }); return true; }
     if (!staff) { await i.reply({ content: 'Nur das Support-Team kann diese Aktion ausführen.', ephemeral: true }); return true; }
+    if (action === 'notes') { await i.reply({ content: (t.notes || []).slice(-10).map(v => `[${v.at}] <@${v.authorId}>: ${v.text}`).join('\n').slice(0, 1900) || 'Noch keine Staff-Notizen.',
+      ephemeral: true, allowedMentions: { parse: [] } }); return true; }
     if (action === 'ai') {
       await i.deferReply({ ephemeral: true });
       const recent = await i.channel.messages.fetch({ limit: 30 });
@@ -297,7 +307,8 @@ async function handleTicketInteraction(i) {
   if (i.isStringSelectMenu() && i.customId === 'ticket:change-category') {
     const next = cats.find(v => v.id === i.values[0]); if (!next) return true;
     const oldRole = cat?.roleId || c.teamRoleId, newRole = next.roleId || c.teamRoleId;
-    if (oldRole !== newRole) { await i.channel.permissionOverwrites.delete(oldRole).catch(() => {}); await i.channel.permissionOverwrites.edit(newRole, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true }); }
+    if (oldRole !== newRole) { await i.channel.permissionOverwrites.edit(newRole, { ViewChannel: true, SendMessages: !c.exclusiveClaim || !t.ownerId, ReadMessageHistory: true });
+      if (oldRole) await i.channel.permissionOverwrites.delete(oldRole).catch(() => {}); }
     if (next.parentId || c.categoryId) await i.channel.setParent(next.parentId || c.categoryId, { lockPermissions: false });
     t.categoryId = next.id; t.categoryName = next.name; await storeTicket(i, t);
     await i.update({ content: `Kategorie: ${next.name}`, components: [] }); return true;

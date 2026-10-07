@@ -79,7 +79,9 @@ async function handleApplicationInteraction(i) {
   }
   if (i.isButton() && ['application:accept', 'application:reject'].includes(i.customId)) {
     const record = c.records?.[i.channelId], type = types(c).find(v => v.id === record?.typeId) || fallbackType;
-    if (!i.memberPermissions?.has(PermissionFlagsBits.ManageChannels) && !i.member?.roles?.cache?.has(type.roleId || c.teamRoleId)) { await i.reply({ content: 'Nur das Bewerbungs-Team kann entscheiden.', ephemeral: true }); return true; }
+    if (!i.memberPermissions?.has(PermissionFlagsBits.ManageChannels) && !i.member?.roles?.cache?.has(type.roleId || c.teamRoleId) &&
+      !(Array.isArray(i.member?.roles) && i.member.roles.includes(type.roleId || c.teamRoleId))) {
+      await i.reply({ content: 'Nur das Bewerbungs-Team kann entscheiden.', ephemeral: true }); return true; }
     if (!record || record.state !== 'open') { await i.reply({ content: 'Diese Bewerbung wurde bereits entschieden.', ephemeral: true }); return true; }
     await i.deferUpdate(); const accepted = i.customId.endsWith('accept');
     await updateGuildSettings(i.guildId, old => ({ applications: { ...old.applications, records: { ...old.applications.records,

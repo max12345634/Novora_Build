@@ -12,6 +12,7 @@ const { getGuildSettings } = require('../utils/guildSettings');
 const { randomBytes, randomInt } = require('node:crypto');
 const { panel } = require('../utils/theme');
 const challenges = new Map();
+const failures = new Map();
 
 const CODE_ALPHABET = '23456789';
 const VERIFY_BUTTON_ID = 'verify:start';
@@ -166,6 +167,12 @@ async function handleVerifyButton(interaction) {
     await interaction.reply({ content: 'Verify ist auf diesem Server noch nicht fertig eingerichtet.', ephemeral: true });
     return true;
   }
+  const failKey = `${interaction.guildId}:${interaction.user.id}`;
+  const record = failures.get(failKey);
+  if (record?.count >= 3 && record.until > Date.now()) {
+    await interaction.reply({ content: 'Zu viele fehlgeschlagene Versuche. Bitte in fünf Minuten erneut versuchen.', ephemeral: true }); return true;
+  }
+  for (const [key, value] of challenges) if (value.expires < Date.now()) challenges.delete(key);
   const code = createCode();
   const token = randomBytes(12).toString('hex');
   challenges.set(token, { code, userId: interaction.user.id, guildId: interaction.guildId, expires: Date.now() + 5 * 60_000 });
@@ -193,8 +200,13 @@ async function handleVerifySelect(interaction) {
   if (selectedCode !== expectedCode) {
     const settings = await getGuildSettings(interaction.guildId);
     const action = settings.verify?.failureAction || 'retry';
+    const failKey = `${interaction.guildId}:${interaction.user.id}`;
+    const current = failures.get(failKey);
+    const attempts = current?.until > Date.now() ? current.count + 1 : 1;
+    failures.set(failKey, { count: attempts, until: Date.now() + 5 * 60_000 });
     await interaction.update({
-      content: action === 'kick' ? 'Captcha falsch. Du wirst vom Server entfernt.' : action === 'timeout' ? 'Captcha falsch. Bitte später erneut versuchen.' : 'Captcha falsch. Du kannst es erneut versuchen.',
+      content: action === 'kick' ? 'Captcha falsch. Du wirst vom Server entfernt.' : action === 'timeout' ? 'Captcha falsch. Bitte später erneut versuchen.' :
+        attempts >= 3 ? 'Captcha falsch. Bitte in fünf Minuten erneut versuchen.' : 'Captcha falsch. Du kannst es erneut versuchen.',
       embeds: [],
       components: []
     });
@@ -211,15 +223,21 @@ async function handleVerifySelect(interaction) {
   }
 
   const settings = await getGuildSettings(interaction.guildId);
+  failures.delete(`${interaction.guildId}:${interaction.user.id}`);
   const verifySettings = settings.verify || {};
   const role = await interaction.guild.roles.fetch(verifySettings.roleId).catch(() => null);
   if (!role || !interaction.guild.members.me.permissions.has(PermissionFlagsBits.ManageRoles) || role.position >= interaction.guild.members.me.roles.highest.position) {
     await interaction.update({ content: 'Novora kann die Verify-Rolle nicht vergeben. Bitte informiere die Serververwaltung.', embeds: [], components: [] });
     return true;
   }
-  await interaction.member.roles.add(verifySettings.roleId, 'Verify erfolgreich abgeschlossen.');
-  if (verifySettings.removeRoleId && interaction.member.roles.cache.has(verifySettings.removeRoleId)) {
-    await interaction.member.roles.remove(verifySettings.removeRoleId, 'Verify erfolgreich abgeschlossen.');
+  try {
+    await interaction.member.roles.add(verifySettings.roleId, 'Verify erfolgreich abgeschlossen.');
+    if (verifySettings.removeRoleId && interaction.member.roles.cache.has(verifySettings.removeRoleId)) {
+      await interaction.member.roles.remove(verifySettings.removeRoleId, 'Verify erfolgreich abgeschlossen.');
+    }
+  } catch {
+    await interaction.update({ content: 'Die Rolle konnte nicht vergeben werden. Bitte informiere die Serververwaltung.', embeds: [], components: [] });
+    return true;
   }
   await interaction.update({ content: 'Verifizierung erfolgreich', embeds: [], components: [] });
   return true;
