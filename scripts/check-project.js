@@ -21,7 +21,7 @@ const requiredFiles = [
   'src/commands/general/news.js', 'src/commands/moderation/moderation.js', 'src/commands/general/nachricht.js',
   'src/commands/setup/verify.js', 'src/features/verify.js',
   'src/features/welcome.js', 'src/features/embeds.js', 'src/features/orders.js',
-  'src/features/setup.js', 'src/features/tickets.js',
+  'src/features/setup.js', 'src/features/tickets.js', 'src/features/applications.js',
   'src/utils/auditLog.js', 'src/utils/guildSettings.js'
 ];
 
