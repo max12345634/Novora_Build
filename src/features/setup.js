@@ -1,6 +1,6 @@
 const {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelSelectMenuBuilder, ChannelType, EmbedBuilder,
-  ModalBuilder, PermissionFlagsBits, RoleSelectMenuBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle
+  ModalBuilder, PermissionFlagsBits, RoleSelectMenuBuilder, Routes, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle
 } = require('discord.js');
 const { getGuildSettings, updateGuildSettings } = require('../utils/guildSettings');
 const { createPanelEmbed, createVerifyButton } = require('./verify');
@@ -66,6 +66,6 @@ if(i.isButton()&&i.customId===IDS.logf){const s=await getGuildSettings(i.guildId
 if(i.isChannelSelectMenu()&&i.customId===IDS.appc){const n=await patch(i,'applications',{channelId:i.values[0]});await i.update(appWizard(n));return true;}
 if(i.isRoleSelectMenu()&&i.customId===IDS.appr){const n=await patch(i,'applications',{teamRoleId:i.values[0]});await i.update(appWizard(n));return true;}
 if(i.isButton()&&i.customId===IDS.appf){const s=await getGuildSettings(i.guildId),c=s.applications||{};if(!c.channelId||!c.teamRoleId){await i.reply({content:'Kanal und Teamrolle fehlen.',ephemeral:true});return true;}const ch=await i.guild.channels.fetch(c.channelId).catch(()=>null);if(!ch?.isTextBased()){await i.reply({content:'Bewerbungs-Kanal ungültig.',ephemeral:true});return true;}await updateGuildSettings(i.guildId,{applications:{...c,enabled:true}});await ch.send({embeds:[new EmbedBuilder().setColor(0x5865f2).setTitle('📝 Werde Teil unseres Teams').setDescription('Du möchtest Teil unseres Teams werden? Starte unten deine Bewerbung.').setFooter({text:i.guild.name+' · Bewerbungen'})],components:[new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('application:open').setLabel('Bewerbung starten').setEmoji('📝').setStyle(ButtonStyle.Primary))]});await i.update(done('Bewerbungen aktiv','Panel: '+ch));return true;}
-if(i.isModalSubmit()&&i.customId===IDS.brand){const name=i.fields.getTextInputValue('name'),bio=i.fields.getTextInputValue('bio');if(!name&&!bio){await i.reply({content:'Gib mindestens Name oder Bio an.',ephemeral:true});return true;}const body={};if(name)body.nick=name;if(bio)body.bio=bio;await i.client.rest.patch('/guilds/'+i.guildId+'/members/@me',{body});await i.reply({content:'✅ Branding wurde für diesen Server gespeichert.',ephemeral:true});return true;}
+if(i.isModalSubmit()&&i.customId===IDS.brand){const name=i.fields.getTextInputValue('name'),bio=i.fields.getTextInputValue('bio');if(!name&&!bio){await i.reply({content:'Gib mindestens Name oder Bio an.',ephemeral:true});return true;}const body={};if(name)body.nick=name;if(bio)body.bio=bio;await i.client.rest.patch(Routes.guildMember(i.guildId,'@me'),{body});await i.reply({content:'✅ Branding wurde für diesen Server gespeichert.',ephemeral:true});return true;}
 return false;}
 module.exports={baseEmbed,setupMenu:menu,handleSetupInteraction,ticketWizard};
