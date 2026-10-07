@@ -1,5 +1,6 @@
 const { PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { baseEmbed, setupMenu } = require('../../features/setup');
+const { getGuildSettings } = require('../../utils/guildSettings');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -12,6 +13,7 @@ module.exports = {
       await interaction.reply({ content: 'Dieser Command funktioniert nur auf einem Discord-Server.', ephemeral: true });
       return;
     }
-    await interaction.reply({ embeds: [baseEmbed(interaction.guild)], components: [setupMenu()], ephemeral: true });
+    const settings = await getGuildSettings(interaction.guildId);
+    await interaction.reply({ embeds: [baseEmbed(interaction.guild, settings)], components: [setupMenu()], ephemeral: true });
   }
 };

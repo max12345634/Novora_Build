@@ -1,4 +1,5 @@
 const { EmbedBuilder } = require('discord.js');
+const { panel } = require('../utils/theme');
 
 function replacePlaceholders(text, member, memberCount) {
   const total = Math.max(0, memberCount);
@@ -7,6 +8,9 @@ function replacePlaceholders(text, member, memberCount) {
     '%USERNAME%': member.user.username,
     '%MENTION%': '<@' + member.id + '>',
     '%TOTALUSERCOUNT%': String(total),
+    '%USERID%': member.id,
+    '%CREATEDAT%': member.user.createdAt ? member.user.createdAt.toLocaleDateString('de-DE') : 'Unbekannt',
+    '%JOINEDAT%': member.joinedAt ? member.joinedAt.toLocaleDateString('de-DE') : 'Unbekannt',
     '{server}': member.guild.name,
     '{username}': member.user.username,
     '{user}': '<@' + member.id + '>',
@@ -26,22 +30,11 @@ function validHttpUrl(value) {
   }
 }
 
-function createLifecycleEmbeds(member, settings, memberCount) {
+function createLifecycleEmbeds(member, settings, memberCount, allSettings = {}) {
   const render = (value) => replacePlaceholders(value, member, memberCount);
-  const embed = new EmbedBuilder()
-    .setColor(settings.color || 0x5865f2)
-    .setDescription(render(settings.description || ''))
-    .setFooter({ text: render(settings.footerText || member.guild.name) });
-  const title = render(settings.title || '');
-  if (title) embed.setTitle(title);
-  const imageUrl = validHttpUrl(settings.imageUrl);
-  const thumbnailUrl = validHttpUrl(settings.thumbnailUrl);
-  if (imageUrl) embed.setImage(imageUrl);
-  if (thumbnailUrl) embed.setThumbnail(thumbnailUrl);
-  const embeds = [embed];
-  const footerImageUrl = validHttpUrl(settings.footerImageUrl);
-  if (footerImageUrl) embeds.push(new EmbedBuilder().setImage(footerImageUrl));
-  return embeds;
+  return panel(member.guild, allSettings, { title: render(settings.title || member.guild.name),
+    description: render(settings.description || ' '), color: settings.color,
+    imageUrl: settings.imageUrl, thumbnailUrl: settings.thumbnailUrl, footerImageUrl: settings.footerImageUrl });
 }
 
 async function sendLifecycleMessage(member, kind, memberCount) {
@@ -52,7 +45,7 @@ async function sendLifecycleMessage(member, kind, memberCount) {
   const channel = await member.guild.channels.fetch(messageSettings.channelId).catch(() => null);
   if (!channel?.isTextBased()) return;
   await channel.send({
-    embeds: createLifecycleEmbeds(member, messageSettings, memberCount),
+    embeds: createLifecycleEmbeds(member, messageSettings, memberCount, settings),
     allowedMentions: { users: [member.id], parse: [] }
   });
 }

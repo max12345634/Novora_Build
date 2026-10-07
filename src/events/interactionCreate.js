@@ -27,8 +27,11 @@ module.exports = {
     } catch (error) {
       logger.error('Fehler bei einer Interaktion.', error);
       const response = { content: 'Da ist ein Fehler passiert. Bitte später erneut versuchen.', ephemeral: true };
-      if (interaction.replied || interaction.deferred) await interaction.followUp(response);
-      else await interaction.reply(response);
+      try {
+        if (interaction.deferred && !interaction.replied) await interaction.editReply(response);
+        else if (interaction.replied) await interaction.followUp(response);
+        else await interaction.reply(response);
+      } catch (replyError) { logger.warn('Fehlerantwort konnte nicht gesendet werden.', replyError); }
     }
   }
 };

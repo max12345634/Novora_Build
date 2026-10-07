@@ -4,77 +4,82 @@ const { GatewayIntentBits } = require('discord.js');
 const { collectCommandFiles } = require('../src/loaders/commands');
 const { createCaptchaImage } = require('../src/features/verify');
 const { makeForm } = require('../src/features/orders');
-const { setupMenu, ticketWizard } = require('../src/features/setup');
-const { DEFAULT_CATEGORIES } = require('../src/features/tickets');
+const { setupMenu, ticketWizard, typePicker, categoryModal } = require('../src/features/setup');
+const { SERVER_TYPES, suggest } = require('../src/features/presets');
+const { form, panelPayload } = require('../src/features/tickets');
 const { modal: applicationModal } = require('../src/features/applications');
-
-const requiredFiles = [
-  'index.js', 'package.json', '.env.example',
-  'src/loaders/commands.js', 'src/loaders/events.js',
-  'src/events/ready.js', 'src/events/interactionCreate.js',
-  'src/events/guildMemberAdd.js', 'src/events/guildMemberRemove.js',
-  'src/events/messageDelete.js', 'src/events/messageUpdate.js',
-  'src/events/voiceStateUpdate.js', 'src/events/guildMemberUpdate.js',
-  'src/events/guildBanAdd.js', 'src/events/guildBanRemove.js',
-  'src/events/channelCreate.js', 'src/events/channelDelete.js', 'src/events/channelUpdate.js',
-  'src/events/roleCreate.js', 'src/events/roleDelete.js', 'src/events/roleUpdate.js',
-  'src/commands/general/ping.js', 'src/commands/general/status.js',
-  'src/commands/general/news.js', 'src/commands/moderation/moderation.js', 'src/commands/general/nachricht.js',
-  'src/commands/setup/verify.js', 'src/features/verify.js',
-  'src/features/welcome.js', 'src/features/embeds.js', 'src/features/orders.js',
-  'src/features/setup.js', 'src/features/tickets.js', 'src/features/applications.js',
-  'src/utils/auditLog.js', 'src/utils/guildSettings.js'
-];
-
-async function main() {
-  for (const file of requiredFiles) {
-    if (!fs.existsSync(path.join(process.cwd(), file))) {
-      throw new Error('Fehlt: ' + file);
+const { migrateGuild } = require('../src/utils/guildSettings');
+const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? walk(path.join(dir, entry.name)) : [path.join(dir, entry.name)]);
+const assert = (condition, message) => { if (!condition) throw new Error(message); };
+function commandOptions(options = [], context = '') {
+  let optional = false;
+  for (const option of options) {
+    if (option.required === false || option.required === undefined && option.type !== 1 && option.type !== 2) optional = true;
+    if (option.required === true && optional) throw new Error(`Pflichtfeld nach optionalem Feld: ${context}/${option.name}`);
+    assert((option.name || '').length <= 32, `Command-Name zu lang: ${context}`);
+    if (option.options) commandOptions(option.options, `${context}/${option.name}`);
+  }
+  assert(options.length <= 25, `Zu viele Command-Optionen: ${context}`);
+}
+function checkEmbed(e) {
+  assert((e.title || '').length <= 256 && (e.description || '').length <= 4096, 'Embed-Titel/Beschreibung zu lang');
+  assert((e.fields || []).length <= 25 && (e.footer?.text || '').length <= 2048, 'Embed-Felder/Footer zu lang');
+  let chars = (e.title || '').length + (e.description || '').length + (e.footer?.text || '').length;
+  for (const field of e.fields || []) { assert(field.name.length <= 256 && field.value.length <= 1024, 'Embed-Feld zu lang'); chars += field.name.length + field.value.length; }
+  assert(chars <= 6000, 'Embed mit mehr als 6000 Zeichen');
+}
+function checkMessage(payload) {
+  const embeds = (payload.embeds || []).map(e => typeof e.toJSON === 'function' ? e.toJSON() : e);
+  assert(embeds.length <= 10, 'Zu viele Embeds'); embeds.forEach(checkEmbed);
+  const rows = (payload.components || []).map(r => typeof r.toJSON === 'function' ? r.toJSON() : r);
+  assert(rows.length <= 5, 'Mehr als fünf Action Rows');
+  for (const row of rows) {
+    assert(row.components.length <= 5, 'Mehr als fünf Buttons');
+    for (const component of row.components) {
+      assert((component.custom_id || '').length <= 100, 'Custom ID zu lang');
+      if (component.options) assert(component.options.length >= 1 && component.options.length <= 25, 'Select-Menü außerhalb 1–25');
     }
   }
-
-  if (!Number.isInteger(GatewayIntentBits.GuildModeration)) {
-    throw new Error('GuildModeration Intent fehlt in der installierten discord.js-Version.');
-  }
-
-  const commandNames = new Set();
-  for (const file of await collectCommandFiles(path.join(process.cwd(), 'src', 'commands'))) {
-    const command = require(file);
-    const payload = command.data?.toJSON();
-    if (!payload || typeof command.execute !== 'function') throw new Error('Ungueltiger Command: ' + file);
-    if (commandNames.has(payload.name)) throw new Error('Doppelter Command: ' + payload.name);
-    commandNames.add(payload.name);
-  }
-
-  const eventRoot = path.join(process.cwd(), 'src', 'events');
-  const eventFiles = fs.readdirSync(eventRoot).filter((file) => file.endsWith('.js'));
-  for (const file of eventFiles) {
-    const event = require(path.join(eventRoot, file));
-    if (!event.name || typeof event.execute !== 'function') throw new Error('Ungueltiges Event: ' + file);
-  }
-
-  const captcha = createCaptchaImage('234 567').attachment;
-  if (!Buffer.isBuffer(captcha) || !captcha.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) {
-    throw new Error('Captcha-Bild ist kein gueltiges PNG.');
-  }
-
-  const form = makeForm().toJSON();
-  if (form.components.length !== 5) throw new Error('Das Bestellformular muss genau fuenf Fragen enthalten.');
-
-  const menu = setupMenu().toJSON();
-  if (menu.components[0].options.length !== 6) throw new Error('Das zentrale Setup muss sechs Bereiche anbieten.');
-  const wizard = ticketWizard({}).components.map((row) => row.toJSON());
-  if (wizard.length !== 5) throw new Error('Der Ticket-Setup-Assistent muss fuenf Schritte anzeigen.');
-  if (Object.keys(DEFAULT_CATEGORIES).length !== 5) throw new Error('Das Ticket-System muss fuenf Standardkategorien besitzen.');
-  if (applicationModal().toJSON().components.length !== 5) throw new Error('Das Bewerbungsformular muss fuenf Fragen enthalten.');
-
-  if (fs.existsSync(path.join(process.cwd(), '.env'))) {
-    console.warn('Hinweis: .env existiert lokal. Das ist okay, solange sie nicht in GitHub landet.');
-  }
-  console.log('Novora Projektcheck erfolgreich: ' + commandNames.size + ' Befehle und ' + eventFiles.length + ' Events geprueft.');
 }
-
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+function checkModal(m) {
+  const json = m.toJSON(); assert(json.components.length >= 1 && json.components.length <= 5, 'Modal-Fragen außerhalb 1–5');
+  assert(json.custom_id.length <= 100, 'Modal-Custom ID zu lang');
+  for (const row of json.components) for (const c of row.components) {
+    assert(c.label.length <= 45 && c.max_length <= 4000 && c.custom_id.length <= 100, 'Text Input über Discord-Limit');
+  }
+}
+async function main() {
+  for (const file of walk('src').filter(v => v.endsWith('.js'))) {
+    require(path.resolve(file)); // Laden prüft gleichzeitig Imports.
+  }
+  assert(Number.isInteger(GatewayIntentBits.GuildModeration), 'GuildModeration Intent fehlt');
+  const commandNames = new Set();
+  for (const file of await collectCommandFiles(path.resolve('src/commands'))) {
+    const command = require(file), payload = command.data?.toJSON();
+    assert(payload && typeof command.execute === 'function', `Ungültiger Command: ${file}`);
+    assert(!commandNames.has(payload.name), `Doppelter Command: ${payload.name}`);
+    commandNames.add(payload.name); commandOptions(payload.options, payload.name);
+  }
+  const eventFiles = walk('src/events').filter(v => v.endsWith('.js'));
+  for (const file of eventFiles) { const e = require(path.resolve(file)); assert(e.name && typeof e.execute === 'function', `Ungültiges Event: ${file}`); }
+  const png = createCaptchaImage('234 567').attachment;
+  assert(Buffer.isBuffer(png) && png.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])), 'Captcha ist kein PNG');
+  checkModal(makeForm()); checkModal(applicationModal());
+  checkModal(categoryModal());
+  assert(SERVER_TYPES.length >= 100 && new Set(SERVER_TYPES.map(v => v.id)).size === SERVER_TYPES.length, 'Servertypen fehlen oder IDs doppelt');
+  for (const type of SERVER_TYPES) {
+    const categories = suggest(type.id, ''); assert(categories.length > 0 && categories.length <= 25, `Preset ungültig: ${type.id}`);
+    for (const c of categories) { assert(c.id.length <= 40 && c.name.length <= 100 && c.questions.length <= 20, `Kategorie ungültig: ${c.id}`);
+      checkModal(form(c, 0, 'test')); }
+  }
+  const guild = { name: 'Beispiel', id: '123456789012345678' }, categories = suggest('community');
+  const settings = migrateGuild({ tickets: { categories }, branding: { footerImageUrl: 'https://example.com/footer.png' } });
+  checkMessage(panelPayload(guild, settings));
+  for (let step = 1; step <= 6; step++) checkMessage(ticketWizard({ ...settings.tickets, step }, settings, guild));
+  checkMessage(typePicker('', 0)); checkMessage({ components: [setupMenu()] });
+  const legacy = migrateGuild({ tickets: { categories: { legacy: { label: 'Alte Kategorie' } } }, applications: { teamRoleId: '123' } });
+  assert(legacy.tickets.categories[0].name === 'Alte Kategorie' && legacy.applications.types.length, 'Migration fehlgeschlagen');
+  if (fs.existsSync('data/guild-settings.json')) JSON.parse(fs.readFileSync('data/guild-settings.json', 'utf8'));
+  console.log(`Novora-Check: ${commandNames.size} Commands, ${eventFiles.length} Events, ${SERVER_TYPES.length} Presets, Komponenten und Migration gültig.`);
+}
+main().catch(error => { console.error(error); process.exitCode = 1; });

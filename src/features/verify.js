@@ -9,6 +9,9 @@ const {
 } = require('discord.js');
 const { deflateSync } = require('node:zlib');
 const { getGuildSettings } = require('../utils/guildSettings');
+const { randomBytes, randomInt } = require('node:crypto');
+const { panel } = require('../utils/theme');
+const challenges = new Map();
 
 const CODE_ALPHABET = '23456789';
 const VERIFY_BUTTON_ID = 'verify:start';
@@ -31,7 +34,7 @@ const SEGMENT_RECTS = {
 function createCode(length = 6) {
   let code = '';
   for (let index = 0; index < length; index += 1) {
-    code += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+    code += CODE_ALPHABET[randomInt(CODE_ALPHABET.length)];
   }
   return code.slice(0, 3) + ' ' + code.slice(3);
 }
@@ -120,14 +123,10 @@ function createCaptchaImage(code) {
   return new AttachmentBuilder(png, { name: 'novora-captcha.png' });
 }
 
-function createPanelEmbed(guild, settings) {
-  const embed = new EmbedBuilder()
-    .setColor(settings.color || 0x5865f2)
-    .setTitle(settings.title || 'Server Verifizierung')
-    .setDescription(settings.description || 'Bitte verifiziere dich mit Hilfe des unteren Buttons, um mit dem Server zu interagieren.')
-    .setFooter({ text: settings.footerText || guild.name });
-  if (settings.imageUrl) embed.setImage(settings.imageUrl);
-  return embed;
+function createPanelEmbed(guild, settings, allSettings = {}) {
+  return panel(guild, allSettings, { color: settings.color, title: settings.title || '✅ Verifizierung',
+    description: settings.description || 'Starte mit dem Button die Verifizierung, um Zugriff auf den Server zu erhalten.',
+    imageUrl: settings.imageUrl, footerImageUrl: settings.footerImageUrl });
 }
 
 function createVerifyButton() {
@@ -150,10 +149,10 @@ function createCaptchaOptions(expectedCode) {
   return [...options].sort(() => Math.random() - 0.5).map((code) => ({ label: code, value: code }));
 }
 
-function createCaptchaSelect(expectedCode) {
+function createCaptchaSelect(expectedCode, token = randomBytes(12).toString('hex')) {
   return new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
-      .setCustomId(VERIFY_SELECT_PREFIX + Buffer.from(expectedCode).toString('base64url'))
+      .setCustomId(VERIFY_SELECT_PREFIX + token)
       .setPlaceholder('Waehle den Captcha-Code aus')
       .addOptions(createCaptchaOptions(expectedCode))
   );
@@ -167,10 +166,12 @@ async function handleVerifyButton(interaction) {
     return true;
   }
   const code = createCode();
+  const token = randomBytes(12).toString('hex');
+  challenges.set(token, { code, userId: interaction.user.id, guildId: interaction.guildId, expires: Date.now() + 5 * 60_000 });
   await interaction.reply({
     embeds: [createCaptchaEmbed()],
     files: [createCaptchaImage(code)],
-    components: [createCaptchaSelect(code)],
+    components: [createCaptchaSelect(code, token)],
     ephemeral: true
   });
   return true;
@@ -178,20 +179,29 @@ async function handleVerifyButton(interaction) {
 
 async function handleVerifySelect(interaction) {
   if (!interaction.customId.startsWith(VERIFY_SELECT_PREFIX)) return false;
-  const expectedCode = Buffer.from(interaction.customId.slice(VERIFY_SELECT_PREFIX.length), 'base64url').toString('utf8');
+  const token = interaction.customId.slice(VERIFY_SELECT_PREFIX.length);
+  const challenge = challenges.get(token);
+  challenges.delete(token);
+  if (!challenge || challenge.userId !== interaction.user.id || challenge.guildId !== interaction.guildId || challenge.expires < Date.now()) {
+    await interaction.update({ content: 'Dieses Captcha ist abgelaufen. Starte erneut.', embeds: [], components: [] });
+    return true;
+  }
+  const expectedCode = challenge.code;
   const selectedCode = interaction.values[0];
 
   if (selectedCode !== expectedCode) {
+    const settings = await getGuildSettings(interaction.guildId);
+    const action = settings.verify?.failureAction || 'retry';
     await interaction.update({
-      content: 'Captcha ist fehlgeschlagen. Du hast das Captcha nicht geloest. Du wirst in 5 Sekunden vom Server gekickt.',
+      content: action === 'kick' ? 'Captcha falsch. Du wirst vom Server entfernt.' : action === 'timeout' ? 'Captcha falsch. Bitte später erneut versuchen.' : 'Captcha falsch. Du kannst es erneut versuchen.',
       embeds: [],
       components: []
     });
+    if (action === 'retry') return true;
     setTimeout(async () => {
       try {
-        if (interaction.guild.members.me.permissions.has(PermissionFlagsBits.KickMembers)) {
-          await interaction.member.kick('Captcha falsch geloest.');
-        }
+        if (action === 'kick' && interaction.guild.members.me.permissions.has(PermissionFlagsBits.KickMembers)) await interaction.member.kick('Captcha falsch gelöst.');
+        if (action === 'timeout' && interaction.guild.members.me.permissions.has(PermissionFlagsBits.ModerateMembers)) await interaction.member.timeout(5 * 60_000, 'Captcha falsch gelöst.');
       } catch (error) {
         // Die Fehlermeldung wurde bereits angezeigt; Kick-Rechte koennen trotzdem fehlen.
       }
@@ -201,6 +211,11 @@ async function handleVerifySelect(interaction) {
 
   const settings = await getGuildSettings(interaction.guildId);
   const verifySettings = settings.verify || {};
+  const role = await interaction.guild.roles.fetch(verifySettings.roleId).catch(() => null);
+  if (!role || !interaction.guild.members.me.permissions.has(PermissionFlagsBits.ManageRoles) || role.position >= interaction.guild.members.me.roles.highest.position) {
+    await interaction.update({ content: 'Novora kann die Verify-Rolle nicht vergeben. Bitte informiere die Serververwaltung.', embeds: [], components: [] });
+    return true;
+  }
   await interaction.member.roles.add(verifySettings.roleId, 'Verify erfolgreich abgeschlossen.');
   if (verifySettings.removeRoleId && interaction.member.roles.cache.has(verifySettings.removeRoleId)) {
     await interaction.member.roles.remove(verifySettings.removeRoleId, 'Verify erfolgreich abgeschlossen.');
