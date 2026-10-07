@@ -6,6 +6,7 @@ const { createCaptchaImage } = require('../src/features/verify');
 const { makeForm } = require('../src/features/orders');
 const { setupMenu, ticketWizard } = require('../src/features/setup');
 const { DEFAULT_CATEGORIES } = require('../src/features/tickets');
+const { modal: applicationModal } = require('../src/features/applications');
 
 const requiredFiles = [
   'index.js', 'package.json', '.env.example',
@@ -65,6 +66,7 @@ async function main() {
   const wizard = ticketWizard({}).components.map((row) => row.toJSON());
   if (wizard.length !== 5) throw new Error('Der Ticket-Setup-Assistent muss fuenf Schritte anzeigen.');
   if (Object.keys(DEFAULT_CATEGORIES).length !== 5) throw new Error('Das Ticket-System muss fuenf Standardkategorien besitzen.');
+  if (applicationModal().toJSON().components.length !== 5) throw new Error('Das Bewerbungsformular muss fuenf Fragen enthalten.');
 
   if (fs.existsSync(path.join(process.cwd(), '.env'))) {
     console.warn('Hinweis: .env existiert lokal. Das ist okay, solange sie nicht in GitHub landet.');
