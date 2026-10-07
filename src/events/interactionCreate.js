@@ -3,6 +3,7 @@ const { handleVerifyButton, handleVerifySelect } = require('../features/verify')
 const { handleOrderInteraction } = require('../features/orders');
 const { handleSetupInteraction } = require('../features/setup');
 const { handleTicketInteraction } = require('../features/tickets');
+const { handleApplicationInteraction } = require('../features/applications');
 const { logger } = require('../utils/logger');
 
 module.exports = {
@@ -11,6 +12,7 @@ module.exports = {
     try {
       if (await handleSetupInteraction(interaction)) return;
       if (await handleTicketInteraction(interaction)) return;
+      if (await handleApplicationInteraction(interaction)) return;
       if (interaction.isButton() && await handleVerifyButton(interaction)) return;
       if (interaction.isStringSelectMenu() && await handleVerifySelect(interaction)) return;
       if (await handleOrderInteraction(interaction, process.env.GUILD_ID)) return;
