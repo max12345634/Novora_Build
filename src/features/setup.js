@@ -453,9 +453,10 @@ async function handleSetupInteraction(i) {
       const channelSummary = plan.recommendations.map(v => `${v.exists ? '✅ vorhanden' : '＋ Vorschlag'} · #${v.name}`).join('\n');
       const channelNames = (plan.channels.slice(0, 30).map(v => `#${v.name}`).join(' · ') || 'Keine sichtbaren Kanäle gefunden').slice(0, 900);
       const embeds = panel(i.guild, s, { title: '🤖 Serveranalyse · Vorschau',
-        description: 'Ich habe die für Novora sichtbare Serverstruktur ausgewertet. Es wurden keine Nachrichten, privaten Inhalte oder Rollenmitgliedschaften durchsucht. Noch nichts wird geändert.',
+        description: `Ich habe die für Novora sichtbare Serverstruktur ausgewertet. Es wurden keine Nachrichten, privaten Inhalte oder Rollenmitgliedschaften durchsucht. Noch nichts wird geändert.${s.ai?.enabled && process.env.NOVORA_AI_ENDPOINT && process.env.NOVORA_AI_API_KEY ? ' Kanal- und Rollennamen werden für die optionale Einschätzung an deinen konfigurierten KI-Anbieter gesendet.' : ''}`,
         fields: [{ name: 'Erkannte Struktur', value: `${plan.channelCount} sichtbare Kanäle · ${plan.roleCount} Rollen\n${channelNames}` },
           { name: 'Rollen (nur Namen, keine Änderungen)', value: plan.roles.slice(0, 20).map(v => `@${v.name}`).join(' · ').slice(0, 1000) || 'Keine Rollen erkannt' },
+          { name: 'Supportrolle (unverbindlicher Vorschlag)', value: plan.suggestedSupportRole ? `@${plan.suggestedSupportRole.name}` : 'Keine eindeutige Rolle erkannt' },
           { name: 'Vorgeschlagene Bereiche', value: channelSummary },
           { name: 'Ticket-Vorschläge', value: plan.categories.slice(0, 10).map(v => `${v.emoji || '🎫'} ${v.name}`).join('\n').slice(0, 1024) },
           ...(aiNote ? [{ name: 'KI-Einschätzung', value: aiNote }] : [])] });
@@ -475,19 +476,22 @@ async function handleSetupInteraction(i) {
       await i.deferReply({ ephemeral: true });
       const me = i.guild.members.me || await i.guild.members.fetchMe();
       if (!me.permissions.has(PermissionFlagsBits.ManageChannels)) throw new Error('Zum Erstellen der vorgeschlagenen Kanäle benötigt Novora „Kanäle verwalten“.');
-      const missing = saved.plan.recommendations.filter(v => !v.existingId);
+      const currentPlan = analyzeGuild(i.guild, await getGuildSettings(i.guildId));
+      const fingerprint = plan => JSON.stringify({ channels: plan.channels.map(v => [v.id, v.name, v.type]).sort(), roles: plan.roles.map(v => [v.id, v.name]).sort() });
+      if (fingerprint(currentPlan) !== fingerprint(saved.plan)) throw new Error('Die Serverstruktur hat sich seit der Vorschau geändert. Bitte starte die Analyse erneut, damit keine doppelten oder falschen Kanäle entstehen.');
+      const missing = currentPlan.recommendations.filter(v => !v.existingId);
       if (i.guild.channels.cache.size + missing.length > 500) throw new Error('Discord erlaubt in diesem Server keine weiteren Kanäle.');
       const results = [];
-      for (const item of saved.plan.recommendations) {
+      for (const item of currentPlan.recommendations) {
         try {
           const channel = item.existingId ? await i.guild.channels.fetch(item.existingId).catch(() => null)
             : await i.guild.channels.create({ name: item.name, type: ChannelType.GuildText, reason: `Novora Setup-Plan, bestätigt von ${i.user.tag}` });
           if (channel) results.push({ ...item, existingId: channel.id });
         } catch (error) { results.push({ ...item, error: error.message }); }
       }
-      const appliedPlan = { ...saved.plan, recommendations: results.filter(v => v.existingId) };
+      const appliedPlan = { ...currentPlan, recommendations: results.filter(v => v.existingId) };
       await updateGuildSettings(i.guildId, old => draftFromAnalysis(appliedPlan, old));
-      const createdCount = results.filter(v => !saved.plan.recommendations.find(original => original.name === v.name)?.existingId && v.existingId).length;
+      const createdCount = results.filter(v => !currentPlan.recommendations.find(original => original.name === v.name)?.existingId && v.existingId).length;
       const failed = results.filter(v => v.error);
       serverPlans.delete(parts[2]);
       await i.editReply({ content: `✅ ${createdCount} Kanäle erstellt; vorhandene Kanäle wurden wiederverwendet. ${failed.length ? `Nicht erstellt: ${failed.map(v => `#${v.name}`).join(', ')}.` : ''}\nKanäle sind zunächst öffentlich und enthalten noch keine Panels. Prüfe die Berechtigungen und aktiviere die einzelnen Panels in /setup.` });

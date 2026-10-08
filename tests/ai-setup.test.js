@@ -20,7 +20,7 @@ test('server analysis only considers channels visible to the bot and prepares ex
   const text = (id, name, viewable = true) => ({ id, name, type: 0, parentId: null, viewable, isTextBased: () => true, isThread: () => false });
   const guild = { id: '123456789012345678', name: 'Demo', channels: { cache: new Map([
     ['1', text('111111111111111111', 'support-chat')], ['2', text('222222222222222222', 'private', false)]
-  ]) }, roles: { cache: new Map() } };
+  ]) }, roles: { cache: new Map([['3', { id: '333333333333333333', name: 'Support', managed: false }]]) } };
   const plan = analyzeGuild(guild, { tickets: { serverType: 'community', categories: [] } });
   assert.equal(plan.channelCount, 1);
   assert.equal(plan.recommendations.find(value => value.key === 'support').existingId, '111111111111111111');
@@ -28,6 +28,7 @@ test('server analysis only considers channels visible to the bot and prepares ex
   assert.equal(draft.tickets.categories[0].id, 'kept');
   assert.equal(draft.tickets.panelChannelId, '333333333333333333');
   assert.equal(draft.ai.channelIds[0], '111111111111111111');
+  assert.equal(draft.tickets.teamRoleId, '333333333333333333');
   assert.equal(draft.ai.channelEnabled, false);
 });
 
