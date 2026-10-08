@@ -24,6 +24,8 @@ test('FAQ matching accepts close wording but refuses unrelated questions', () =>
   const settings = { ai: { faq: [{ q: 'Wie bewerbe ich mich als Supporter?', a: 'Öffne das Bewerbungs-Panel.' }] } };
   assert.equal(fallback(settings, 'Wie kann ich mich als Supporter bewerben?'), 'Öffne das Bewerbungs-Panel.');
   assert.match(fallback(settings, 'Wie ist das Wetter morgen?'), /keine sichere Antwort/);
-  assert.equal(isQuestion('Hallo zusammen!'), false);
+  assert.equal(isQuestion('Hallo'), true);
+  assert.equal(fallback(settings, 'Hallo'), 'Hallo! 👋 Wobei kann ich dir helfen?');
+  assert.equal(isQuestion('Das ist nur eine Aussage.'), false);
   assert.equal(isQuestion('Wo finde ich das Regelwerk'), true);
 });

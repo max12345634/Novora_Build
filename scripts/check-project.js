@@ -81,6 +81,7 @@ async function main() {
     assert(!eventNames.has(e.name), `Doppeltes Discord-Event: ${e.name}`); eventNames.add(e.name);
   }
   assert(eventNames.has('messageDeleteBulk'), 'Bulk-Delete-Event fehlt');
+  assert(eventNames.has('guildUpdate'), 'Serveränderungs-Event fehlt');
   const png = createCaptchaImage('234 567').attachment;
   assert(Buffer.isBuffer(png) && png.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])), 'Captcha ist kein PNG');
   checkModal(makeForm()); checkModal(applicationModal());
@@ -120,7 +121,7 @@ async function main() {
   assert(legacy.tickets.categories[0].name === 'Alte Kategorie' && legacy.applications.types.length, 'Migration fehlgeschlagen');
   if (fs.existsSync('data/guild-settings.json')) JSON.parse(fs.readFileSync('data/guild-settings.json', 'utf8'));
   const { needed } = require('../src/utils/auditLog');
-  assert(needed('Nachricht gelöscht') === 3 && needed('Kanal erstellt') === 2 && needed('Ticket geschlossen') === 1,
+  assert(needed('Nachricht gelöscht') === 3 && needed('Kanal erstellt') === 2 && needed('Server geändert') === 1 && needed('Rolle geändert') === 1 && needed('Ticket geschlossen') === 1,
     'Log-Profile ordnen Ereignisse den falschen Detailstufen zu.');
   console.log(`Novora-Check: ${commandNames.size} Commands, ${eventFiles.length} Events, ${SERVER_TYPES.length} Presets, Komponenten und Migration gültig.`);
 }

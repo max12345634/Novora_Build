@@ -12,6 +12,7 @@ const TYPE_NAMES = new Map([
   [ChannelType.PrivateThread, 'Privater Thread'], [ChannelType.AnnouncementThread, 'Ankündigungs-Thread']
 ]);
 const AUDIT_TYPES = {
+  'Server geändert': AuditLogEvent.GuildUpdate,
   'Kanal erstellt': AuditLogEvent.ChannelCreate, 'Kanal gelöscht': AuditLogEvent.ChannelDelete,
   'Kanal geändert': AuditLogEvent.ChannelUpdate, 'Rolle erstellt': AuditLogEvent.RoleCreate,
   'Rolle gelöscht': AuditLogEvent.RoleDelete, 'Rolle geändert': AuditLogEvent.RoleUpdate,
@@ -21,7 +22,10 @@ const AUDIT_TYPES = {
 
 function needed(title) {
   if (/Nachricht|Voice/i.test(title)) return 3;
-  if (/Kanal|Rolle|Mitglied geändert/i.test(title)) return 2;
+  // Server- and role-setting changes are important security/audit events and
+  // are included even in the basic profile. Channel structure stays extended.
+  if (/Server|Rolle|Mitglied geändert/i.test(title)) return 1;
+  if (/Kanal/i.test(title)) return 2;
   return 1;
 }
 function channelTypeName(channel) {
@@ -79,7 +83,7 @@ async function sendLog(guild, title, description, channelOverride = null, target
       channelId: opts.auditChannelId || opts.channelId });
 
     const fields = [...(opts.fields || [])];
-    const actorField = fields.find(v => /ausgeführt von|erstellt von|gelöscht durch|bearbeitet von/i.test(v.name));
+    const actorField = fields.find(v => /ausgeführt von|erstellt von|gelöscht durch|bearbeitet von|geändert von/i.test(v.name));
     if (audit?.id && actorField) {
       actorField.value = `<@${audit.id}>`;
     } else if (audit?.id) {
