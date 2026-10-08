@@ -53,7 +53,7 @@ Beispiel: `/setup verify kanal:#verify rolle:@Buerger entfernen:@Gast`
 
 Der Discord-Token gehoert ausschliesslich in BotHosting Environment Variables.
 
-Nach Code-Aenderungen muessen Slash Commands mit `npm run deploy:commands` neu registriert und der Bot neu gestartet werden.
+Beim Start registriert Novora die Slash Commands automatisch neu. Auf `main` synchronisiert GitHub Actions nach erfolgreicher Prüfung den BotHosting-Stand und startet den Bot neu; du musst Commands nicht mehr separat registrieren.
 
 ## Novora v0.3: Geführtes Setup
 
@@ -73,10 +73,21 @@ Ohne Provider arbeitet Novora mit Presets, Schlüsselwörtern und der pro Server
 
 `data/guild-settings.json` bleibt auf dem Hosting-Server und ist nicht in Git. Beim Laden werden ältere Einstellungen auf Schema 2 ergänzt, ohne sie sofort neu zu schreiben. Schreibvorgänge werden seriell und atomar ausgeführt. Bitte das `data/`-Verzeichnis vor einem Hosting-Wechsel sichern; keine Token in die JSON-Datei schreiben.
 
-Für mehrere Server `GUILD_ID` in der BotHosting-Umgebung entfernen. Novora registriert Slash Commands dann global; deren Sichtbarkeit kann nach Discord-Änderungen etwas verzögert sein. Mit `GUILD_ID` bleiben die Commands auf diesen Testserver beschränkt. Bestehende Installationen mit `GUILD_ID` laufen unverändert weiter.
+`GUILD_ID` in der BotHosting-Umgebung muss auf deinen Discord-Server zeigen, wenn du die Commands dort sofort testen willst. Ist die Variable gesetzt, registriert Novora Befehle nur für diese Guild. Ohne `GUILD_ID` registriert Novora global; Discord kann für globale Änderungen bis zu einer Stunde brauchen.
+
+### Automatische Updates von GitHub zu BotHosting
+
+Nur ein erfolgreicher Push oder Merge nach `main` wird ausgerollt: GitHub führt zuerst Projektcheck, Tests und Syntaxprüfung aus und ruft danach BotHosting `sync` auf. BotHosting zieht den Branch `main` und startet den laufenden Bot neu. Beim Neustart trägt `index.js` alle Slash Commands erneut bei Discord ein. Pull Requests und andere Branches werden geprüft, aber nicht live ausgerollt.
+
+Einmalige Einrichtung: BotHosting muss mit `max12345634/Novora_Build` und Branch `main` verknüpft sein. Unter **BotHosting → Account → Developer** einen API-Schlüssel mit dem Scope **`deployments:write`** erstellen. In GitHub auf der Repository-Seite **Settings → Secrets and variables → Actions → New repository secret** öffnen und diese zwei Secrets anlegen:
+
+- `BOT_HOSTING_API_KEY` – der BotHosting-Schlüssel. Nur als GitHub Secret speichern, niemals im Code.
+- `BOT_HOSTING_DEPLOYMENT_ID` – die Deployment-ID aus BotHosting, zum Beispiel im Format `dep_…`.
+
+Wenn eines davon fehlt, meldet der Deploy-Job den fehlenden Eintrag klar, statt den Rollout still zu überspringen. Der Bot muss beim Sync laufen; BotHosting startet ihn nach dem GitHub-Pull neu.
 
 ### Rechte und Grenzen
 
 Der Bot benötigt `Kanäle verwalten`, `Kanal ansehen`, `Nachrichten senden`, `Links einbetten`, `Nachrichtenverlauf lesen` und für Verify `Rollen verwalten`; seine Rolle muss über der Verify-Rolle stehen. `Audit-Log ansehen` ergänzt bei bestimmten Ereignissen einen wahrscheinlichen Akteur. Für Timeout/Kick sind `Mitglieder moderieren`/`Mitglieder kicken` nötig. Transcripts lesen bis zu 2000 Nachrichten und enthalten HTML und Text; Anhänge werden als Links dokumentiert. Uploads über Discords Größenlimit können im Log scheitern, die Schließung bleibt bestehen. Captcha-Challenges und noch nicht abgeschlossene mehrseitige Formulare sind bewusst kurzlebig und starten nach einem Bot-Neustart neu.
 
-GitHub Actions prüft auf PR und Branch `codex/**` die Befehle, Events, Presets, Komponenten und JS-Syntax. Der BotHosting-Deploy-Workflow löst nur bei Push auf `main` aus und nur wenn `BOT_HOSTING_WEBHOOK_URL` als GitHub Secret eingerichtet ist. Ein PR-Build veröffentlicht keine neue Bot-Version.
+GitHub Actions prüft auf PR und Branch `codex/**` die Befehle, Events, Presets, Komponenten und JS-Syntax. Der BotHosting-Sync läuft erst nach grüner Prüfung auf `main`; ein PR-Build veröffentlicht keine neue Bot-Version.

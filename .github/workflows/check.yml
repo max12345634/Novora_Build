@@ -6,6 +6,7 @@ on:
       - main
       - 'codex/**'
   pull_request:
+  workflow_dispatch:
 
 jobs:
   check:
@@ -31,3 +32,10 @@ jobs:
 
       - name: Verify JavaScript syntax
         run: find src scripts tests -name '*.js' -print0 | xargs -0 -n1 node --check
+
+  deploy:
+    name: BotHosting synchronisieren
+    needs: check
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    uses: ./.github/workflows/bot-hosting-deploy.yml
+    secrets: inherit
