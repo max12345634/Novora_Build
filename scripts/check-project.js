@@ -4,7 +4,7 @@ const { GatewayIntentBits } = require('discord.js');
 const { collectCommandFiles } = require('../src/loaders/commands');
 const { createCaptchaImage, createCaptchaEmbed } = require('../src/features/verify');
 const { makeForm } = require('../src/features/orders');
-const { setupMenu, homeComponents, ticketWizard, typePicker, categoryModal, systemView, designModal, editModal, categoryManage, applicationManage, assetUploadModal } = require('../src/features/setup');
+const { setupMenu, homeComponents, ticketWizard, typePicker, categoryModal, systemView, designModal, editModal, categoryManage, applicationManage, assetUploadModal, parseTicketQuestions } = require('../src/features/setup');
 const { applicationPanel } = require('../src/features/applications');
 const { createPanelEmbed, createVerifyButton } = require('../src/features/verify');
 const { createLifecycleEmbeds } = require('../src/features/welcome');
@@ -75,10 +75,17 @@ async function main() {
     commandNames.add(payload.name); commandOptions(payload.options, payload.name);
   }
   const eventFiles = walk('src/events').filter(v => v.endsWith('.js'));
-  for (const file of eventFiles) { const e = require(path.resolve(file)); assert(e.name && typeof e.execute === 'function', `Ungültiges Event: ${file}`); }
+  const eventNames = new Set();
+  for (const file of eventFiles) {
+    const e = require(path.resolve(file)); assert(e.name && typeof e.execute === 'function', `Ungültiges Event: ${file}`);
+    assert(!eventNames.has(e.name), `Doppeltes Discord-Event: ${e.name}`); eventNames.add(e.name);
+  }
+  assert(eventNames.has('messageDeleteBulk'), 'Bulk-Delete-Event fehlt');
   const png = createCaptchaImage('234 567').attachment;
   assert(Buffer.isBuffer(png) && png.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])), 'Captcha ist kein PNG');
   checkModal(makeForm()); checkModal(applicationModal());
+  checkModal(form({ id: 'file-check', name: 'Upload', questions: [{ id: 'proof', label: 'Beweisdatei', type: 'file', maxFiles: 3 }] }));
+  assert(parseTicketQuestions('Datei: Screenshot')[0]?.type === 'file', 'Ticket-Formulare unterstützen keine Datei-Frage.');
   checkModal(categoryModal());
   checkModal(editModal('ai', { faq: [], links: [] }));
   checkModal(editModal('branding', {}));
@@ -99,7 +106,7 @@ async function main() {
   const allInOne = templateForCode('0908', guild.name);
   assert(allInOne?.tickets.categories.length > 0 && allInOne.ai.channelEnabled === false, 'Vorlage 0908 ist ungültig oder sofort aktiv');
   assert(templateForCode('0000', guild.name) === null, 'Unbekannte Vorlagen-Codes werden akzeptiert');
-  for (const section of ['tickets', 'verify', 'welcome', 'logs', 'applications', 'branding', 'ai']) {
+  for (const section of ['tickets', 'verify', 'welcome', 'voice', 'logs', 'applications', 'branding', 'ai']) {
     checkMessage(systemView(guild, settings, section)); checkModal(designModal(section));
   }
   checkMessage(categoryManage(categories[0]));
@@ -112,6 +119,9 @@ async function main() {
   const legacy = migrateGuild({ tickets: { categories: { legacy: { label: 'Alte Kategorie' } } }, applications: { teamRoleId: '123' } });
   assert(legacy.tickets.categories[0].name === 'Alte Kategorie' && legacy.applications.types.length, 'Migration fehlgeschlagen');
   if (fs.existsSync('data/guild-settings.json')) JSON.parse(fs.readFileSync('data/guild-settings.json', 'utf8'));
+  const { needed } = require('../src/utils/auditLog');
+  assert(needed('Nachricht gelöscht') === 3 && needed('Kanal erstellt') === 2 && needed('Ticket geschlossen') === 1,
+    'Log-Profile ordnen Ereignisse den falschen Detailstufen zu.');
   console.log(`Novora-Check: ${commandNames.size} Commands, ${eventFiles.length} Events, ${SERVER_TYPES.length} Presets, Komponenten und Migration gültig.`);
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

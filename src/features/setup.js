@@ -15,17 +15,34 @@ const searches = new Map();
 const serverPlans = new Map();
 const menuItems = [
   ['tickets', '🎫 Tickets', 'Kategorien, Formulare und Panel'], ['verify', '✅ Verify', 'Captcha und Rollen'],
+  ['voice', '📞 Voice-Support', 'Private Sprachräume für persönliche Hilfe'],
   ['welcome', '👋 Welcome / Leave', 'Nachrichten beim Beitritt und Austritt'], ['logs', '📋 Logs', 'Ereignisse und Protokolle'],
   ['applications', '📝 Bewerbungen', 'Bewerbungstypen und Fragen'], ['branding', '🎨 Bot-Design', 'Name, Farben, Footer und Galerie-Bilder'],
   ['ai', '🤖 KI', 'Wissensbasis, Tickets und Antwortkanal']
 ];
 const row = (...components) => new ActionRowBuilder().addComponents(components);
+const settingsKey = section => section === 'voice' ? 'voiceSupport' : section;
 const button = (id, label, style = ButtonStyle.Secondary) => new ButtonBuilder().setCustomId(`setup:${id}`).setLabel(label).setStyle(style);
 const input = (id, label, value = '', style = TextInputStyle.Short, max = 1000, required = false) => {
   const builder = new TextInputBuilder().setCustomId(id).setLabel(label).setStyle(style).setMaxLength(max).setRequired(required);
   if (value) builder.setValue(String(value).slice(0, max));
   return row(builder);
 };
+function parseTicketQuestions(source = '') {
+  return source.split('\n').map((raw, index) => {
+    let label = raw.trim(), type = 'text', style = 'paragraph';
+    const marker = label.match(/^(datei|file|kurz|kurztext)\s*:\s*/i);
+    if (marker) {
+      label = label.slice(marker[0].length).trim();
+      type = /^(datei|file)$/i.test(marker[1]) ? 'file' : 'text';
+      style = marker[1].toLowerCase().startsWith('kurz') ? 'short' : 'paragraph';
+    }
+    return { id: `q${index + 1}`, label: label.slice(0, 45), ...(type === 'file' ? { type, maxFiles: 3 } : { style }) };
+  }).filter(question => question.label).slice(0, 20);
+}
+function ticketQuestionsText(questions = []) {
+  return questions.map(question => `${question.type === 'file' ? 'Datei: ' : question.style === 'short' ? 'Kurz: ' : ''}${question.label}`).join('\n');
+}
 const modal = (id, title, fields) => new ModalBuilder().setCustomId(`setup:${id}`).setTitle(title.slice(0, 45)).addComponents(fields);
 function setupMenu() { return row(new StringSelectMenuBuilder().setCustomId('setup:menu').setPlaceholder('System auswählen …')
   .addOptions(menuItems.map(([value, label, description]) => ({ value, label, description })))); }
@@ -34,7 +51,7 @@ function baseEmbed(guild, settings = {}) { return panel(guild, settings, { title
   fields: menuItems.map(([, label, description]) => ({ name: label, value: description, inline: true })) })[0]; }
 const back = () => row(button('home', '← Übersicht'));
 function systemView(guild, s, section) {
-  const c = s[section] || {};
+  const c = s[settingsKey(section)] || {};
   const fields = section === 'branding' ? [
     { name: 'Projekt', value: s.branding?.projectName || guild.name, inline: true },
     { name: 'Farbe', value: s.branding?.primaryColor || 'Standard', inline: true },
@@ -43,16 +60,44 @@ function systemView(guild, s, section) {
   ] : section === 'ai' ? [{ name: 'KI allgemein', value: c.enabled ? (c.autoReply ? '✅ Aktiv' : '🟡 Nur Vorschläge') : '○ Aus', inline: true },
     { name: 'Ticket-Hilfe', value: c.enabled && c.ticketEnabled ? '✅ Aktiv' : '○ Aus', inline: true },
     { name: 'Antwortkanäle', value: (c.channelIds?.length ? c.channelIds : c.channelId ? [c.channelId] : []).map(id => `<#${id}>`).join(', ') || 'Keine Kanäle ausgewählt', inline: true },
-    { name: 'Wissensbasis', value: `${c.faq?.length || 0} FAQ · ${c.links?.length || 0} Links` }] : [{ name: 'Status', value: c.enabled ? '✅ Aktiv' : '○ Inaktiv' }];
+    { name: 'Wissensbasis', value: `${c.faq?.length || 0} FAQ · ${c.links?.length || 0} Links` }]
+    : section === 'logs' ? [
+      { name: 'Status', value: c.enabled ? '✅ Aktiv' : '○ Inaktiv', inline: true },
+      { name: 'Log-Profil', value: c.profile || 'basis', inline: true },
+      { name: 'Zielkanal', value: c.channelId ? `<#${c.channelId}>` : 'Noch nicht ausgewählt' },
+      { name: 'Ausführende Person', value: 'Mit „Audit-Log anzeigen“ kann Novora Verursacher bei unterstützten Aktionen ergänzen. Discord stellt die Person bei Nachrichtenlöschungen nicht immer bereit.' }
+    ] : section === 'voice' ? [
+      { name: 'Status', value: c.enabled ? '✅ Aktiv' : '○ Inaktiv', inline: true },
+      { name: 'Wartekanal', value: c.lobbyChannelId ? `<#${c.lobbyChannelId}>` : 'Noch nicht gewählt', inline: true },
+      { name: 'Supportrolle', value: c.supportRoleId ? `<@&${c.supportRoleId}>` : 'Noch nicht gewählt', inline: true },
+      { name: 'Hinweis-Kanal', value: c.alertChannelId ? `<#${c.alertChannelId}>` : 'Noch nicht gewählt', inline: true },
+      { name: 'Ablauf', value: 'Beitritt zum Wartekanal erstellt einen privaten Sprachraum. Der Raum wird gelöscht, sobald er leer ist.' }
+    ] : [{ name: 'Status', value: c.enabled ? '✅ Aktiv' : '○ Inaktiv' }];
   const embeds = panel(guild, s, { title: menuItems.find(v => v[0] === section)?.[1] || section,
     description: section === 'branding'
       ? 'Hier legst du das gemeinsame Novora-Design fest. Wähle aus zehn Farb- und Layoutstilen. Discord erlaubt Bots keine eigenen Schriftarten; Footer-Text und Footer-Bild gelten automatisch für alle Panels. Wähle zuerst einen privaten Textkanal als Bildspeicher.'
       : section === 'ai' ? 'Wähle bis zu fünf Textkanäle für automatische Fragen-Antworten. Die Serveranalyse liest nur sichtbare Kanal- und Rollennamen, keine Nachrichten oder privaten Tickets. Unsichere Fragen gehen an das Team.'
+      : section === 'logs' ? 'Wähle einen Logkanal und das gewünschte Detailprofil. Die Einträge verwenden Novoras gemeinsames Server-Branding und zeigen den Zeitpunkt, Ziel und verfügbare Audit-Informationen.'
+      : section === 'voice' ? 'Mitglieder treten dem Wartekanal bei. Novora erstellt einen privaten Sprachraum, verschiebt die Person hinein und informiert das Support-Team im Hinweis-Kanal.'
       : 'Konfiguriere die Einstellungen. Prüfe die Vorschau vor der Veröffentlichung.', fields });
-  const components = [row(button(`edit:${section}`, 'Bearbeiten', ButtonStyle.Primary),
+  const components = [row(button(section === 'voice' ? 'voice-info' : `edit:${section}`, section === 'voice' ? 'Ablauf' : 'Bearbeiten', ButtonStyle.Primary),
     button(`preview:${section}`, 'Vorschau'), button(`toggle:${section}`, c.enabled ? 'Deaktivieren' : 'Aktivieren', c.enabled ? ButtonStyle.Danger : ButtonStyle.Success),
     button(`design:${section}`, 'Farbe'), button(`reset:${section}`, 'Zurücksetzen', ButtonStyle.Danger)),
     row(button('home', '← Übersicht'), button('template-code', 'Code-Vorlage'))];
+  if (section === 'voice') components.splice(0, components.length, row(button('voice-info', 'Ablauf'),
+    button('preview:voice', 'Vorschau'), button('toggle:voice', c.enabled ? 'Deaktivieren' : 'Aktivieren', c.enabled ? ButtonStyle.Danger : ButtonStyle.Success),
+    button('home', '← Übersicht')));
+  if (section === 'logs') components.splice(1, 0, row(new StringSelectMenuBuilder().setCustomId('setup:logs-profile')
+    .setPlaceholder(`Detailgrad: ${c.profile || 'basis'}`).addOptions([
+      { label: 'Basis', value: 'basis', description: 'Moderation, Tickets und wichtige Ereignisse' },
+      { label: 'Erweitert', value: 'erweitert', description: 'Zusätzlich Änderungen an Kanälen, Rollen und Mitgliedern' },
+      { label: 'Alles', value: 'alles', description: 'Zusätzlich Nachrichten und Voice-Aktivitäten' }
+    ].map(option => ({ ...option, default: option.value === (c.profile || 'basis') })))));
+  if (section === 'voice') components.splice(1, 0,
+    row(new ChannelSelectMenuBuilder().setCustomId('setup:pick:voice:lobbyChannelId').setPlaceholder('Öffentlicher Voice-Wartekanal').addChannelTypes(ChannelType.GuildVoice)),
+    row(new RoleSelectMenuBuilder().setCustomId('setup:pick:voice:supportRoleId').setPlaceholder('Voice-Support-Rolle')),
+    row(new ChannelSelectMenuBuilder().setCustomId('setup:pick:voice:categoryId').setPlaceholder('Kategorie für private Räume (optional)').addChannelTypes(ChannelType.GuildCategory).setMinValues(0)),
+    row(new ChannelSelectMenuBuilder().setCustomId('setup:pick:voice:alertChannelId').setPlaceholder('Textkanal für Support-Pings').addChannelTypes(ChannelType.GuildText)));
   if (section === 'tickets') return ticketWizard(c, s, guild);
   if (section === 'ai') components.splice(1, 0,
     row(button('ai-test', 'KI testen'), button('ai-options', 'Ticket-Modus'), button('ai-channel-toggle', c.enabled && c.channelEnabled ? 'Kanal-KI pausieren' : 'Kanal-KI aktivieren', c.enabled && c.channelEnabled ? ButtonStyle.Danger : ButtonStyle.Success), button('ai-analyze', 'Server analysieren')),
@@ -63,7 +108,7 @@ function systemView(guild, s, section) {
     row(new StringSelectMenuBuilder().setCustomId('setup:design-select').setPlaceholder(`Designstil: ${DESIGNS.find(v => v.id === s.branding?.designId)?.name || 'Midnight'}`)
       .addOptions(DESIGNS.map(v => ({ label: v.name, value: v.id, description: `Akzent ${v.accentColor}` })))));
   if (section === 'welcome') components.splice(1, 0, row(button('edit-leave', 'Leave gestalten'), button('assets:welcome', 'Welcome-Bild'), button('assets:leave', 'Leave-Bild'), button('preview:leave', 'Leave-Vorschau')));
-  if (section === 'applications') components.splice(1, 0, row(button('application-manage', 'Bewerbungstypen verwalten'), button('assets:applications', 'Panel-Bild')));
+  if (section === 'applications') components.splice(1, 0, row(button('application-manage', 'Bewerbungstypen verwalten'), button('application-propose', 'Typen vorschlagen'), button('assets:applications', 'Panel-Bild')));
   if (section === 'verify') components.splice(1, 0, row(button('assets:verify', 'Verify-Bild aus Galerie'), new ChannelSelectMenuBuilder().setCustomId('setup:pick:verify:channelId').setPlaceholder('Verify-Kanal').addChannelTypes(ChannelType.GuildText)),
     row(new RoleSelectMenuBuilder().setCustomId('setup:pick:verify:roleId').setPlaceholder('Verify-Rolle')));
   if (section === 'applications') components.splice(1, 0, row(new ChannelSelectMenuBuilder().setCustomId('setup:pick:applications:channelId').setPlaceholder('Bewerbungs-Panel').addChannelTypes(ChannelType.GuildText)),
@@ -79,7 +124,12 @@ function ticketWizard(c = {}, settings = {}, guild = { name: 'Server' }) {
     `Panel: ${c.panelChannelId ? `<#${c.panelChannelId}>` : 'fehlt'} · Supportrolle: ${c.teamRoleId ? `<@&${c.teamRoleId}>` : 'fehlt'}`
   ];
   const embeds = panel(guild, settings, { title: '🎫 Ticket-Setup', description: summary.join('\n'),
-    fields: step >= 3 ? cats.slice(0, 15).map(v => ({ name: `${v.emoji || '🎫'} ${v.name}${v.enabled === false ? ' (inaktiv)' : ''}`, value: v.description || '—', inline: true })) : [] });
+    fields: step >= 3 ? cats.slice(0, 15).map(v => {
+      const count = Object.values(c.records || {}).filter(ticket => ticket.categoryId === v.id && ticket.state === 'open').length;
+      const capacity = Number(v.capacity) || 0;
+      return { name: `${v.emoji || '🎫'} ${v.name}${v.enabled === false ? ' (inaktiv)' : ''}`,
+        value: `${v.description || '—'}\nOffene Tickets: ${count}${capacity ? `/${capacity}${count >= capacity ? ' · Team-Pings pausiert' : ''}` : ''}`.slice(0, 1024), inline: true };
+    }) : [] });
   const components = [];
   if (step === 1) components.push(row(button('type-search', 'Servertyp suchen', ButtonStyle.Primary), button('type-page:all:0', 'Alle Typen')));
   if (step === 2) components.push(row(button('describe', 'Server beschreiben', ButtonStyle.Primary)));
@@ -121,7 +171,7 @@ function categoryManage(cat) { return { content: `${cat.emoji || '🎫'} ${cat.n
   row(new ChannelSelectMenuBuilder().setCustomId(`setup:category-pick:${cat.id}:parentId`).setPlaceholder('Discord-Kategorie').addChannelTypes(ChannelType.GuildCategory).setMinValues(0)),
   row(new ChannelSelectMenuBuilder().setCustomId(`setup:category-pick:${cat.id}:logChannelId`).setPlaceholder('Logkanal').addChannelTypes(ChannelType.GuildText).setMinValues(0))] }; }
 function applicationManage(type) { return { content: `📝 ${type.name} · ${type.enabled === false ? 'inaktiv' : 'aktiv'}`,
-  components: [row(button(`application-extra:${type.id}`, 'Fragen bearbeiten'), button(`application-toggle:${type.id}`, 'Aktivieren/Deaktivieren'),
+  components: [row(button(`application-edit:${type.id}`, 'Name & Fragen bearbeiten'), button(`application-toggle:${type.id}`, 'Aktivieren/Deaktivieren'),
     button(`application-remove:${type.id}`, 'Entfernen', ButtonStyle.Danger)),
   row(button(`assets:application-type:${type.id}`, 'Bild aus Galerie')),
   row(new RoleSelectMenuBuilder().setCustomId(`setup:application-pick:${type.id}:roleId`).setPlaceholder('Zuständige Rolle')),
@@ -147,7 +197,8 @@ function editModal(section, c = {}) {
     input('description', 'Text mit Variablen', c.description || 'Hallo %MENTION%!', TextInputStyle.Paragraph, 1500),
     input('channelId', 'Welcome-Kanal ID', c.channelId, undefined, 20)]);
   if (section === 'applications') return modal('config:applications', 'Bewerbungstyp erstellen', [input('name', 'Name des Bewerbungstyps', '', undefined, 80, true),
-    input('description', 'Beschreibung', '', TextInputStyle.Paragraph, 500), input('questions', 'Fragen (eine pro Zeile, maximal 20)', '', TextInputStyle.Paragraph, 1500)]);
+    input('emoji', 'Emoji (auch Server-Emoji)', '📝', undefined, 80), input('description', 'Beschreibung', '', TextInputStyle.Paragraph, 500),
+    input('questions', 'Fragen (eine pro Zeile, maximal 20)', '', TextInputStyle.Paragraph, 1500)]);
   if (section === 'ai') return modal('config:ai', 'KI-Wissensbasis', [input('description', 'Serverbeschreibung', c.description, TextInputStyle.Paragraph, 1000),
     input('faq', 'FAQ: Frage|Antwort je Zeile', (c.faq || []).map(v => `${v.q}|${v.a}`).join('\n'), TextInputStyle.Paragraph, 1000),
     input('knowledge', 'Weitere Infos / Regeln (freigegeben)', c.knowledge, TextInputStyle.Paragraph, 1000),
@@ -236,7 +287,7 @@ function readFields(i) { return Object.fromEntries(i.fields.fields.map(f => [f.c
 async function patch(i, key, delta) { const s = await updateGuildSettings(i.guildId, old => ({ [key]: { ...old[key], ...delta } })); return s; }
 async function view(i, section, s) { await i.update(systemView(i.guild, s, section)); }
 async function activate(i, section, s) {
-  const c = s[section] || {}, me = i.guild.members.me || await i.guild.members.fetchMe();
+  const key = settingsKey(section), c = s[key] || {}, me = i.guild.members.me || await i.guild.members.fetchMe();
   if (section === 'tickets' || section === 'verify' || section === 'applications') {
     const channelId = section === 'verify' ? c.channelId : section === 'applications' ? c.channelId : c.panelChannelId;
     if (!channelId) throw new Error('Bitte zuerst einen Panel-Kanal auswählen.');
@@ -260,8 +311,24 @@ async function activate(i, section, s) {
       const msg = old ? await old.edit(payload) : await channel.send(payload);
       await patch(i, section, { enabled: true, panelMessageId: msg.id }); }
     if (section === 'applications') { await patch(i, section, { enabled: true }); await sendApplicationPanel(channel, i.guild); }
+  } else if (section === 'voice') {
+    const lobby = c.lobbyChannelId && await i.guild.channels.fetch(c.lobbyChannelId).catch(() => null);
+    const alert = c.alertChannelId && await i.guild.channels.fetch(c.alertChannelId).catch(() => null);
+    const role = c.supportRoleId && await i.guild.roles.fetch(c.supportRoleId).catch(() => null);
+    if (lobby?.type !== ChannelType.GuildVoice) throw new Error('Bitte einen gültigen Voice-Wartekanal auswählen.');
+    if (!alert?.isTextBased() || !role) throw new Error('Bitte Supportrolle und Textkanal für die Hinweise auswählen.');
+    if (!me.permissions.has([PermissionFlagsBits.ManageChannels, PermissionFlagsBits.MoveMembers])) throw new Error('Novora benötigt „Kanäle verwalten“ und „Mitglieder verschieben“.');
+    if (!alert.permissionsFor(me)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) throw new Error('Novora benötigt im Hinweis-Kanal „Kanal ansehen“, „Nachrichten senden“ und „Links einbetten“.');
+    await patch(i, key, { enabled: true });
   } else {
-    if (section === 'logs' && !c.channelId) throw new Error('Bitte zuerst einen Logkanal auswählen.');
+    if (section === 'logs') {
+      if (!c.channelId) throw new Error('Bitte zuerst einen Logkanal auswählen.');
+      const logChannel = await i.guild.channels.fetch(c.channelId).catch(() => null);
+      if (!logChannel?.isTextBased()) throw new Error('Der ausgewählte Logkanal wurde gelöscht oder ist kein Textkanal.');
+      if (!logChannel.permissionsFor(me)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) {
+        throw new Error('Novora benötigt im Logkanal „Kanal ansehen“, „Nachrichten senden“ und „Links einbetten“.');
+      }
+    }
     await patch(i, section, { enabled: true });
   }
   await view(i, section, await getGuildSettings(i.guildId));
@@ -273,6 +340,12 @@ async function handleSetupInteraction(i) {
   try {
     if (action === 'home') { const s = await getGuildSettings(i.guildId); await i.update({ embeds: [baseEmbed(i.guild, s)], components: homeComponents() }); return true; }
     if (action === 'menu') { await view(i, i.values[0], await getGuildSettings(i.guildId)); return true; }
+    if (action === 'voice-info') { await i.reply({ content: 'Wähle den Wartekanal, die Supportrolle und den Textkanal. Beim Aktivieren benötigt Novora „Kanäle verwalten“ und „Mitglieder verschieben“. Leere private Räume werden automatisch gelöscht.', ephemeral: true }); return true; }
+    if (action === 'logs-profile' && i.isStringSelectMenu()) {
+      const profile = i.values[0];
+      if (!['basis', 'erweitert', 'alles'].includes(profile)) throw new Error('Dieses Log-Profil ist ungültig.');
+      const next = await patch(i, 'logs', { profile }); await i.update(systemView(i.guild, next, 'logs')); return true;
+    }
     if (action === 'type-search') { await i.showModal(modal('search', 'Servertyp suchen', [input('query', 'Name oder Stichwort', '', undefined, 80)])); return true; }
     if (action === 'search' && i.isModalSubmit()) { const token = Math.random().toString(36).slice(2, 12);
       searches.set(token, { userId: i.user.id, query: i.fields.getTextInputValue('query'), expires: Date.now() + 900000 });
@@ -324,7 +397,8 @@ async function handleSetupInteraction(i) {
       if (cat) await i.showModal(modal(`category-extras:${cat.id}`, 'Kategorie: Zuständigkeit', [
         input('roleId', 'Supportrolle ID', cat.roleId, undefined, 20), input('parentId', 'Discord-Kategorie ID', cat.parentId, undefined, 20),
         input('logChannelId', 'Logkanal ID', cat.logChannelId, undefined, 20),
-        input('maxOpen', 'Maximale offene Tickets (1–10)', cat.maxOpen || '1', undefined, 2)])); return true; }
+        input('maxOpen', 'Offene Tickets je Person (1–10)', cat.maxOpen || '1', undefined, 2),
+        input('capacity', 'Auslastungsgrenze: Team-Pings pausieren (0–500)', cat.capacity || '0', undefined, 3)])); return true; }
     if (action === 'category-advanced') { const c = (await getGuildSettings(i.guildId)).tickets, cat = c.categories?.find(v => v.id === parts[2]);
       if (cat) await i.showModal(modal(`category-advanced-save:${cat.id}`, 'Kategorie: weitere Optionen', [
         input('pingRoleIds', 'Ping-Rollen IDs (Komma getrennt)', (cat.pingRoleIds || []).join(','), undefined, 200),
@@ -333,8 +407,10 @@ async function handleSetupInteraction(i) {
       const next = await patch(i, 'tickets', { categories: action === 'category-remove' ? cats.filter(v => v.id !== parts[2]) : cats.map(v => v.id === parts[2] ? { ...v, enabled: v.enabled === false } : v) });
       await view(i, 'tickets', next); return true; }
     if (action === 'category-extras' && i.isModalSubmit()) { const f = readFields(i), s = await getGuildSettings(i.guildId);
-      if (!/^\d{1,2}$/.test(f.maxOpen) || Number(f.maxOpen) < 1 || Number(f.maxOpen) > 10) throw new Error('Maximum muss 1–10 sein.');
-      const cats = s.tickets.categories.map(v => v.id === parts[2] ? { ...v, ...f, maxOpen: Number(f.maxOpen) } : v);
+      if (!/^\d{1,2}$/.test(f.maxOpen) || Number(f.maxOpen) < 1 || Number(f.maxOpen) > 10) throw new Error('Maximum pro Person muss 1–10 sein.');
+      if (!/^\d{1,3}$/.test(f.capacity || '0') || Number(f.capacity || 0) > 500) throw new Error('Auslastungsgrenze muss 0–500 sein.');
+      const cats = s.tickets.categories.map(v => v.id === parts[2] ? { ...v, roleId: f.roleId || null, parentId: f.parentId || null,
+        logChannelId: f.logChannelId || null, maxOpen: Number(f.maxOpen), capacity: Number(f.capacity || 0) } : v);
       const next = await patch(i, 'tickets', { categories: cats }); await i.reply({ ...ticketWizard(next.tickets, next, i.guild), ephemeral: true }); return true; }
     if (action === 'category-advanced-save' && i.isModalSubmit()) { const f = readFields(i), s = await getGuildSettings(i.guildId);
       if (!/^\d{1,5}$/.test(f.cooldownSeconds) || Number(f.cooldownSeconds) > 86400) throw new Error('Cooldown muss 0–86400 Sekunden sein.');
@@ -349,7 +425,7 @@ async function handleSetupInteraction(i) {
       const existing = old.find(v => v.id === id) || {};
       const cat = { ...existing, id, name: f.name.slice(0, 80), emoji: f.emoji || '🎫', description: f.description.slice(0, 100),
         prefix: (f.prefix || id).replace(/[^a-z0-9-]/gi, '-').slice(0, 30), enabled: f.enabled !== 'nein',
-        questions: f.questions.split('\n').map((label, n) => ({ id: `q${n + 1}`, label: label.trim().slice(0, 45), style: 'paragraph' })).filter(q => q.label).slice(0, 20) };
+        questions: parseTicketQuestions(f.questions) };
       const next = await patch(i, 'tickets', { categories: [...old.filter(v => v.id !== id), cat] });
       await i.reply({ ...ticketWizard(next.tickets, next, i.guild), ephemeral: true }); return true;
     }
@@ -358,7 +434,7 @@ async function handleSetupInteraction(i) {
       const next = await patch(i, 'tickets', { categories: ids.map(id => old.find(v => v.id === id)) }); await i.reply({ ...ticketWizard(next.tickets, next, i.guild), ephemeral: true }); return true; }
     if (action === 'pick') { const section = parts[2], field = parts[3];
       const value = field === 'channelIds' ? [...new Set(i.values)].slice(0, 5) : (i.values[0] || null);
-      const s = await patch(i, section, field === 'channelIds' ? { channelIds: value, channelId: value[0] || null } : { [field]: value });
+      const s = await patch(i, settingsKey(section), field === 'channelIds' ? { channelIds: value, channelId: value[0] || null } : { [field]: value });
       await view(i, section, s); return true; }
     if (action === 'design-select') {
       const design = DESIGNS.find(value => value.id === i.values[0]); if (!design) throw new Error('Dieses Design gibt es nicht.');
@@ -406,18 +482,32 @@ async function handleSetupInteraction(i) {
       if (!types.length) throw new Error('Erstelle zuerst einen Bewerbungstyp über Bearbeiten.');
       await i.reply({ content: 'Bewerbungstyp auswählen', ephemeral: true, components: [row(new StringSelectMenuBuilder()
         .setCustomId('setup:application-select').addOptions(types.slice(0, 25).map(v => ({ label: v.name.slice(0, 100), value: v.id }))))] }); return true; }
+    if (action === 'application-propose') { const s = await getGuildSettings(i.guildId), proposal = setupSuggestions(s).applications;
+      const description = proposal.length ? proposal.map(type => `${type.emoji} **${type.name}**\n${type.questions.map(q => `• ${q.label}`).join('\n')}`).join('\n\n').slice(0, 3800)
+        : 'Aus Servertyp und Beschreibung konnten keine passenden Bewerbungstypen abgeleitet werden. Ergänze die Serverbeschreibung unter **KI → Wissensbasis** oder erstelle einen Typ manuell.';
+      await i.reply({ embeds: panel(i.guild, s, { title: '📝 Bewerbungsvorschläge · Entwurf', description: `${description}\n\nVorschläge bleiben deaktiviert. Du kannst Name, Emoji und Fragen anschließend bearbeiten.` }),
+        components: proposal.length ? [row(button('application-propose-apply', 'Vorschläge als Entwurf speichern', ButtonStyle.Primary), button('home', 'Abbrechen'))] : [back()], ephemeral: true }); return true; }
+    if (action === 'application-propose-apply') { const proposal = setupSuggestions(await getGuildSettings(i.guildId)).applications;
+      if (!proposal.length) throw new Error('Keine Vorschläge vorhanden. Ergänze zuerst die Serverbeschreibung.');
+      const next = await updateGuildSettings(i.guildId, old => { const current = old.applications?.types || [], ids = new Set(current.map(v => v.id));
+        return { applications: { ...old.applications, types: [...current, ...proposal.filter(v => !ids.has(v.id))].slice(0, 25) } }; });
+      await i.update({ ...systemView(i.guild, next, 'applications'), content: 'Vorschläge wurden als deaktivierte Entwürfe gespeichert. Du kannst jeden Typ bearbeiten und einzeln aktivieren.' }); return true; }
     if (action === 'application-select') { const s = await getGuildSettings(i.guildId), type = s.applications?.types?.find(v => v.id === i.values[0]);
       if (type) await i.update(applicationManage(type)); return true; }
     if (action === 'application-pick') { const [, , id, field] = parts, s = await getGuildSettings(i.guildId);
       const types = (s.applications.types || []).map(v => v.id === id ? { ...v, [field]: i.values[0] || null } : v);
       const next = await patch(i, 'applications', { types });
       await i.update(applicationManage(next.applications.types.find(v => v.id === id))); return true; }
+    if (action === 'application-edit') { const s = await getGuildSettings(i.guildId), type = s.applications?.types?.find(v => v.id === parts[2]);
+      if (type) await i.showModal(modal(`application-save:${type.id}`, 'Bewerbungstyp bearbeiten', [input('name', 'Name', type.name, undefined, 80, true),
+        input('emoji', 'Emoji (auch Server-Emoji)', type.emoji || '📝', undefined, 80), input('description', 'Beschreibung', type.description, TextInputStyle.Paragraph, 500),
+        input('questions', 'Fragen je Zeile (maximal 20)', (type.questions || []).map(q => q.label).join('\n'), TextInputStyle.Paragraph, 1500)])); return true; }
     if (action === 'application-extra') { const s = await getGuildSettings(i.guildId), type = s.applications?.types?.find(v => v.id === parts[2]);
       if (type) await i.showModal(modal(`application-save:${type.id}`, 'Bewerbung: Zuständigkeit', [
         input('roleId', 'Zuständige Rolle ID', type.roleId, undefined, 20), input('parentId', 'Discord-Kategorie ID', type.parentId, undefined, 20),
         input('logChannelId', 'Logkanal ID', type.logChannelId, undefined, 20), input('questions', 'Fragen je Zeile', (type.questions || []).map(q => q.label).join('\n'), TextInputStyle.Paragraph, 1500)])); return true; }
     if (action === 'application-save' && i.isModalSubmit()) { const f = readFields(i), s = await getGuildSettings(i.guildId), types = s.applications.types.map(v => v.id === parts[2] ? {
-      ...v, roleId: f.roleId, parentId: f.parentId, logChannelId: f.logChannelId,
+      ...v, name: f.name || v.name, emoji: f.emoji || v.emoji || '📝', description: f.description ?? v.description,
       questions: f.questions.split('\n').map((label, n) => ({ id: `q${n + 1}`, label: label.trim().slice(0, 45) })).filter(q => q.label).slice(0, 20) } : v);
       const next = await patch(i, 'applications', { types }); await i.reply({ ...systemView(i.guild, next, 'applications'), ephemeral: true }); return true; }
     if (action === 'application-toggle' || action === 'application-remove') { const s = await getGuildSettings(i.guildId), types = s.applications.types || [];
@@ -513,7 +603,7 @@ async function handleSetupInteraction(i) {
       if (section === 'applications') {
         const s = await getGuildSettings(i.guildId), types = s.applications.types || [], id = f.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30);
         if (types.length >= 25 && !types.find(v => v.id === id)) throw new Error('Maximal 25 Bewerbungstypen pro Panel.');
-        const type = { id, name: f.name, description: f.description,
+        const type = { id, name: f.name, emoji: f.emoji || '📝', description: f.description,
           questions: f.questions.split('\n').map((label, n) => ({ id: `q${n + 1}`, label: label.trim().slice(0, 45) })).filter(q => q.label).slice(0, 20), enabled: true };
         await patch(i, section, { types: [...types.filter(v => v.id !== id), type] });
       } else if (section === 'ai') await patch(i, section, { description: f.description, knowledge: f.knowledge, style: f.style,
@@ -528,8 +618,8 @@ async function handleSetupInteraction(i) {
         section === 'applications' ? applicationPanel(i.guild, s) : ['welcome', 'leave'].includes(section) ? createLifecycleEmbeds(member, s[section] || {}, i.guild.memberCount, s) :
           panel(i.guild, s, { title: section, description: 'Vorschau des aktuellen Designs' });
       await i.reply({ embeds: Array.isArray(embeds) ? embeds : [embeds], ephemeral: true }); return true; }
-    if (action === 'toggle') { const section = parts[2], s = await getGuildSettings(i.guildId);
-      if (s[section]?.enabled) { const next = await patch(i, section, { enabled: false }); await view(i, section, next); }
+    if (action === 'toggle') { const section = parts[2], key = settingsKey(section), s = await getGuildSettings(i.guildId);
+      if (s[key]?.enabled) { const next = await patch(i, key, { enabled: false }); await view(i, section, next); }
       else await activate(i, section, s); return true; }
     if (action === 'ai-test') { const s = await getGuildSettings(i.guildId); await i.showModal(modal('ai-question', 'Novora testen', [input('question', 'Deine Testfrage', '', TextInputStyle.Paragraph, 500, true)])); return true; }
     if (action === 'ai-question') { const s = await getGuildSettings(i.guildId); await i.reply({ content: await testAnswer(s, i.fields.getTextInputValue('question')), ephemeral: true }); return true; }
@@ -541,8 +631,8 @@ async function handleSetupInteraction(i) {
   return false;
 }
 function categoryModal(c = {}) { return modal(`category-save:${c.id || ''}`, c.id ? 'Kategorie bearbeiten' : 'Neue Ticket-Kategorie', [
-  input('name', 'Name', c.name, undefined, 80, true), input('emoji', 'Emoji', c.emoji, undefined, 30),
+  input('name', 'Name', c.name, undefined, 80, true), input('emoji', 'Emoji (auch Server-Emoji möglich)', c.emoji, undefined, 30),
   input('description', 'Beschreibung', c.description, undefined, 100),
   input('prefix', 'Ticket-Kanal-Präfix', c.prefix, undefined, 30),
-  input('questions', 'Formularfragen je Zeile (max. 20)', (c.questions || []).map(q => q.label).join('\n'), TextInputStyle.Paragraph, 1000) ]); }
-module.exports = { baseEmbed, setupMenu, homeComponents, handleSetupInteraction, ticketWizard, typePicker, categoryModal, systemView, designModal, editModal, categoryManage, applicationManage, assetUploadModal };
+  input('questions', 'Fragen je Zeile (Datei: / Kurz:)', ticketQuestionsText(c.questions), TextInputStyle.Paragraph, 1000) ]); }
+module.exports = { baseEmbed, setupMenu, homeComponents, handleSetupInteraction, ticketWizard, typePicker, categoryModal, systemView, designModal, editModal, categoryManage, applicationManage, assetUploadModal, parseTicketQuestions };

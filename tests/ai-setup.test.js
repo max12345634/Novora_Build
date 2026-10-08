@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { DESIGNS } = require('../src/features/designs');
 const { templateForCode, analyzeGuild, draftFromAnalysis } = require('../src/features/setupPresets');
-const { isConfiguredResponseChannel } = require('../src/features/ai');
+const { isConfiguredResponseChannel, setupSuggestions } = require('../src/features/ai');
 const { migrateGuild } = require('../src/utils/guildSettings');
 
 test('ten Discord-compatible design presets and code 0908 are available', () => {
@@ -39,4 +39,11 @@ test('response channel selection supports up to five channels and normalizes leg
   assert.ok(isConfiguredResponseChannel(settings, ids[1]));
   assert.equal(isConfiguredResponseChannel(settings, '333333333333333333'), false);
   assert.deepEqual(migrateGuild({ ai: { channelId: ids[0] } }).ai.channelIds, [ids[0]]);
+});
+
+test('application recommendations are server-specific editable drafts', () => {
+  const suggestions = setupSuggestions({ tickets: { serverType: 'rp', serverDescription: 'Deutscher Notruf Server mit Polizei und Feuerwehr' } });
+  assert.deepEqual(suggestions.applications.map(value => value.id), ['polizei', 'feuerwehr']);
+  assert.ok(suggestions.applications.every(value => value.enabled === false && value.questions.length >= 3));
+  assert.equal(setupSuggestions({ tickets: { serverDescription: 'Minecraft survival mit eigenem Shop' } }).applications.length, 0);
 });

@@ -18,8 +18,19 @@ test('Concurrent updates preserve both guilds and nested ticket records', async 
     assert.equal(Object.keys(b.tickets.records).length, 20);
     assert.equal(a.tickets.records.channel0, undefined);
     assert.equal(b.tickets.records.channel1, undefined);
-    assert.equal((await readAllSettings()).guildA.schemaVersion, 2);
+    assert.equal((await readAllSettings()).guildA.schemaVersion, 3);
   } finally { await fs.rm(folder, { recursive: true, force: true }); }
+});
+
+test('Log and ticket activity defaults migrate without removing prior settings', () => {
+  const { migrateGuild } = require('../src/utils/guildSettings');
+  const migrated = migrateGuild({ logs: { enabled: true, channelId: 'log-channel', profile: 'alles', imageUrl: 'https://example.invalid/log.png' },
+    tickets: { records: { channelA: { caseId: 'CASE-1', state: 'open' } } }, customFeature: { enabled: true } });
+  assert.equal(migrated.schemaVersion, 3);
+  assert.equal(migrated.logs.profile, 'alles');
+  assert.equal(migrated.logs.imageUrl, 'https://example.invalid/log.png');
+  assert.deepEqual(migrated.tickets.records.channelA.activity, []);
+  assert.equal(migrated.customFeature.enabled, true);
 });
 
 test('Old guild settings are migrated without dropping unrelated features', async () => {

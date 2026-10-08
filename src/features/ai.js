@@ -134,13 +134,20 @@ function isConfiguredResponseChannel(settings, channelId) {
 
 function setupSuggestions(settings) {
   const description = settings.tickets?.serverDescription || settings.ai?.description || '';
-  const applicationNames = [];
-  if (/(team|support|moderation|bewerb)/i.test(description)) applicationNames.push('Support-Team');
-  if (/(polizei)/i.test(description)) applicationNames.push('Polizei');
-  if (/(feuerwehr)/i.test(description)) applicationNames.push('Feuerwehr');
-  if (/(rettungsdienst)/i.test(description)) applicationNames.push('Rettungsdienst');
+  const applicationPresets = [
+    { match: /(team|support|moderation|bewerb|community)/i, id: 'support-team', name: 'Support-Team', emoji: '🛟', questions: ['Wie möchtest du das Team unterstützen?', 'Welche Erfahrung bringst du mit?', 'Wie viel Zeit kannst du einbringen?'] },
+    { match: /(polizei|police|law enforcement)/i, id: 'polizei', name: 'Polizei', emoji: '🚓', questions: ['Warum möchtest du der Polizei beitreten?', 'Welche Erfahrung hast du im RP?', 'Wie würdest du in einer schwierigen Situation handeln?'] },
+    { match: /(feuerwehr|fire department)/i, id: 'feuerwehr', name: 'Feuerwehr', emoji: '🚒', questions: ['Warum möchtest du der Feuerwehr beitreten?', 'Welche Erfahrung hast du im Einsatz-RP?', 'Wann bist du üblicherweise verfügbar?'] },
+    { match: /(rettungsdienst|sanitäter|ems|krankenhaus)/i, id: 'rettungsdienst', name: 'Rettungsdienst', emoji: '🚑', questions: ['Warum möchtest du im Rettungsdienst mitwirken?', 'Wie gehst du mit Stresssituationen um?', 'Welche Erfahrung bringst du mit?'] },
+    { match: /(developer|entwicklung|programmier|software|technik)/i, id: 'developer', name: 'Developer', emoji: '💻', questions: ['Welche Technologien oder Werkzeuge kennst du?', 'Zeige Beispiele deiner bisherigen Arbeit.', 'Wie viel Zeit kannst du einbringen?'] },
+    { match: /(creator|youtube|twitch|stream)/i, id: 'creator', name: 'Creator', emoji: '🎥', questions: ['Auf welcher Plattform bist du aktiv?', 'Was möchtest du mit der Partnerschaft erreichen?', 'Verlinke deine Kanäle.'] }
+  ];
+  const applications = applicationPresets.filter(preset => preset.match.test(description)).map(preset => ({
+    id: preset.id, name: preset.name, emoji: preset.emoji, enabled: false,
+    description: `Vorschlag anhand der Serverbeschreibung. Vor Aktivierung bitte prüfen und anpassen.`,
+    questions: preset.questions.map((label, index) => ({ id: `q${index + 1}`, label, style: 'paragraph' }))
+  }));
   return { categories: suggest(settings.tickets?.serverType, description), verify: true, logs: 'basis',
-    applications: applicationNames.map(name => ({ id: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), name, emoji: '📝', enabled: true,
-      questions: [{ id: 'motivation', label: 'Warum möchtest du dich bewerben?', style: 'paragraph' }] })) };
+    applications };
 }
 module.exports = { fallback, sensitive, isQuestion, testAnswer, assistTicket, assistChannel, setupSuggestions, isConfiguredResponseChannel };
