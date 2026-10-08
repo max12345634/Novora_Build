@@ -6,10 +6,12 @@ const UNKNOWN = 'Dazu habe ich in der Wissensbasis dieses Servers keine sichere 
 const recentAnswers = new Map();
 const normalize = (value) => String(value || '').toLocaleLowerCase('de-DE').normalize('NFKD')
   .replace(/[\u0300-\u036f]/g, '').replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, ' ').trim();
+const isGreeting = value => /^(?:hi|hey|hallo|moin|servus|guten morgen|guten tag|guten abend)(?:\s+(?:zusammen|novora|team))?[.!?]*$/i.test(String(value || '').trim());
 const words = (value) => new Set(normalize(value).split(/\s+/).filter((word) => word.length > 2 && !['bitte', 'eine', 'einer', 'einem', 'und', 'oder', 'wie', 'was', 'kann', 'kannst', 'wo', 'ich', 'du', 'ihr', 'der', 'die', 'das', 'den', 'mit', 'für', 'von', 'auf', 'ist', 'sind', 'gibt', 'bekomme'].includes(word)));
 
 function fallback(settings, question) {
   const ai = settings.ai || {}, normalized = normalize(question), queryTerms = words(question);
+  if (isGreeting(question)) return 'Hallo! 👋 Wobei kann ich dir helfen?';
   let best = null, bestScore = 0;
   for (const item of (ai.faq || []).slice(0, 30)) {
     if (!item?.q || !item?.a) continue;
@@ -32,6 +34,7 @@ function sensitive(question) {
 }
 function isQuestion(message) {
   const text = String(message || '').trim();
+  if (isGreeting(text)) return true;
   return text.includes('?') || /^(?:hey\s+)?(?:wie|wo|was|wer|wann|warum|wieso|welche|welcher|welches|kann|kannst|könnt|darf|gibt|hat|habt|ist|sind|brauche|brauch|hilfe|frage)\b/i.test(text)
     || /\b(?:wie kann|wo finde|wie bekomme|wie funktioniert|was muss ich)\b/i.test(text);
 }
@@ -85,6 +88,7 @@ async function answerMessage(message, settings, context = '') {
   recentAnswers.set(key, now);
   if (recentAnswers.size > 2000) for (const [entry, time] of recentAnswers) if (now - time > 60000) recentAnswers.delete(entry);
   if (sensitive(message.content)) {
+    await message.channel.sendTyping().catch(() => {});
     await message.reply({ embeds: panel(message.guild, settings, { title: '👥 Ein Teammitglied übernimmt',
       description: 'Das Anliegen sollte ein Mensch prüfen. Ich gebe es an das Team weiter.' }), allowedMentions: { parse: [] } });
     const roleId = settings.ai?.teamRoleId || settings.tickets?.teamRoleId;
@@ -92,6 +96,9 @@ async function answerMessage(message, settings, context = '') {
     if (staffRole && !staffRole.managed) await message.channel.send({ content: `<@&${staffRole.id}> Bitte übernehmt diese Anfrage.`, allowedMentions: { users: [], roles: [staffRole.id], parse: [] } });
     return;
   }
+  // Discord zeigt den Status "tippt …" für bis zu zehn Sekunden. Provider-Aufrufe
+  // sind ebenfalls auf zehn Sekunden begrenzt; lokale Antworten kommen sofort danach.
+  await message.channel.sendTyping().catch(error => logger.debug?.('Typing-Indikator nicht verfügbar.', error));
   const answer = await testAnswer(settings, message.content, context);
   if (answer === UNKNOWN || /Dazu sollte ein Teammitglied weiterhelfen/i.test(answer)) {
     await message.reply({ embeds: panel(message.guild, settings, { title: '👥 Das Team hilft weiter',
@@ -150,4 +157,4 @@ function setupSuggestions(settings) {
   return { categories: suggest(settings.tickets?.serverType, description), verify: true, logs: 'basis',
     applications };
 }
-module.exports = { fallback, sensitive, isQuestion, testAnswer, assistTicket, assistChannel, setupSuggestions, isConfiguredResponseChannel };
+module.exports = { fallback, sensitive, isQuestion, isGreeting, testAnswer, assistTicket, assistChannel, setupSuggestions, isConfiguredResponseChannel };

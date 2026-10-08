@@ -61,7 +61,13 @@ function systemView(guild, s, section) {
     { name: 'Ticket-Hilfe', value: c.enabled && c.ticketEnabled ? '✅ Aktiv' : '○ Aus', inline: true },
     { name: 'Antwortkanäle', value: (c.channelIds?.length ? c.channelIds : c.channelId ? [c.channelId] : []).map(id => `<#${id}>`).join(', ') || 'Keine Kanäle ausgewählt', inline: true },
     { name: 'Wissensbasis', value: `${c.faq?.length || 0} FAQ · ${c.links?.length || 0} Links` }]
-    : section === 'logs' ? [
+    : section === 'verify' ? [
+      { name: 'Status', value: c.enabled ? '✅ Aktiv' : '○ Inaktiv', inline: true },
+      { name: 'Panel-Kanal', value: c.channelId ? `<#${c.channelId}>` : 'Noch nicht ausgewählt', inline: true },
+      { name: 'Rolle nach Verify', value: c.roleId ? `<@&${c.roleId}>` : 'Noch nicht ausgewählt', inline: true },
+      { name: 'Rolle entfernen (optional)', value: c.removeRoleId ? `<@&${c.removeRoleId}>` : 'Keine', inline: true },
+      { name: 'Fehleraktion', value: c.failureAction || 'Erneut versuchen', inline: true }
+    ] : section === 'logs' ? [
       { name: 'Status', value: c.enabled ? '✅ Aktiv' : '○ Inaktiv', inline: true },
       { name: 'Log-Profil', value: c.profile || 'basis', inline: true },
       { name: 'Zielkanal', value: c.channelId ? `<#${c.channelId}>` : 'Noch nicht ausgewählt' },
@@ -76,7 +82,7 @@ function systemView(guild, s, section) {
   const embeds = panel(guild, s, { title: menuItems.find(v => v[0] === section)?.[1] || section,
     description: section === 'branding'
       ? 'Hier legst du das gemeinsame Novora-Design fest. Wähle aus zehn Farb- und Layoutstilen. Discord erlaubt Bots keine eigenen Schriftarten; Footer-Text und Footer-Bild gelten automatisch für alle Panels. Wähle zuerst einen privaten Textkanal als Bildspeicher.'
-      : section === 'ai' ? 'Wähle bis zu fünf Textkanäle für automatische Fragen-Antworten. Die Serveranalyse liest nur sichtbare Kanal- und Rollennamen, keine Nachrichten oder privaten Tickets. Unsichere Fragen gehen an das Team.'
+      : section === 'ai' ? 'Wähle bis zu fünf Textkanäle. Bei Nachrichten wie „Hallo“ zeigt Novora „tippt …“ und antwortet; Fragen werden aus der Server-Wissensbasis beantwortet. Im Discord Developer Portal muss zusätzlich Bot → Privileged Gateway Intents → Message Content Intent aktiviert sein.'
       : section === 'logs' ? 'Wähle einen Logkanal und das gewünschte Detailprofil. Die Einträge verwenden Novoras gemeinsames Server-Branding und zeigen den Zeitpunkt, Ziel und verfügbare Audit-Informationen.'
       : section === 'voice' ? 'Mitglieder treten dem Wartekanal bei. Novora erstellt einen privaten Sprachraum, verschiebt die Person hinein und informiert das Support-Team im Hinweis-Kanal.'
       : 'Konfiguriere die Einstellungen. Prüfe die Vorschau vor der Veröffentlichung.', fields });
@@ -110,7 +116,8 @@ function systemView(guild, s, section) {
   if (section === 'welcome') components.splice(1, 0, row(button('edit-leave', 'Leave gestalten'), button('assets:welcome', 'Welcome-Bild'), button('assets:leave', 'Leave-Bild'), button('preview:leave', 'Leave-Vorschau')));
   if (section === 'applications') components.splice(1, 0, row(button('application-manage', 'Bewerbungstypen verwalten'), button('application-propose', 'Typen vorschlagen'), button('assets:applications', 'Panel-Bild')));
   if (section === 'verify') components.splice(1, 0, row(button('assets:verify', 'Verify-Bild aus Galerie'), new ChannelSelectMenuBuilder().setCustomId('setup:pick:verify:channelId').setPlaceholder('Verify-Kanal').addChannelTypes(ChannelType.GuildText)),
-    row(new RoleSelectMenuBuilder().setCustomId('setup:pick:verify:roleId').setPlaceholder('Verify-Rolle')));
+    row(new RoleSelectMenuBuilder().setCustomId('setup:pick:verify:roleId').setPlaceholder('Rolle nach erfolgreicher Verify')),
+    row(new RoleSelectMenuBuilder().setCustomId('setup:pick:verify:removeRoleId').setPlaceholder('Rolle entfernen (optional)').setMinValues(0)));
   if (section === 'applications') components.splice(1, 0, row(new ChannelSelectMenuBuilder().setCustomId('setup:pick:applications:channelId').setPlaceholder('Bewerbungs-Panel').addChannelTypes(ChannelType.GuildText)),
     row(new RoleSelectMenuBuilder().setCustomId('setup:pick:applications:teamRoleId').setPlaceholder('Bewerbungs-Teamrolle')));
   if (section === 'logs') components.splice(1, 0, row(new ChannelSelectMenuBuilder().setCustomId('setup:pick:logs:channelId').setPlaceholder('Logkanal').addChannelTypes(ChannelType.GuildText)));
@@ -189,8 +196,8 @@ function designModal(section, c = {}) {
 }
 function editModal(section, c = {}) {
   if (section === 'branding') return brandingModal(c);
-  if (section === 'verify') return modal('config:verify', 'Verify gestalten', [input('title', 'Titel', c.title), input('description', 'Beschreibung', c.description, TextInputStyle.Paragraph, 1500),
-    input('removeRoleId', 'Rolle entfernen: ID (optional)', c.removeRoleId, undefined, 20),
+  if (section === 'verify') return modal('config:verify', 'Verify gestalten', [input('title', 'Panel-Titel', c.title || '✅ Server-Verifizierung', undefined, 100),
+    input('description', 'Beschreibung', c.description || 'Bitte verifiziere dich mit dem Button, um mit dem Server interagieren zu können.', TextInputStyle.Paragraph, 1500),
     input('failureAction', 'Bei Fehler: retry / timeout / kick', c.failureAction || 'retry', undefined, 7)]);
   if (section === 'logs') return modal('config:logs', 'Logging', [input('profile', 'basis / erweitert / alles', c.profile || 'basis', undefined, 10, true)]);
   if (section === 'welcome') return modal('config:welcome', 'Welcome gestalten', [input('title', 'Titel', c.title || 'Willkommen bei %SERVERNAME%'),
@@ -299,8 +306,11 @@ async function activate(i, section, s) {
     const role = await i.guild.roles.fetch(selectedRoleId).catch(() => null);
     if (!role) throw new Error('Die ausgewählte Rolle fehlt.');
     if (section === 'verify' && (!me.permissions.has(PermissionFlagsBits.ManageRoles) || role.position >= me.roles.highest.position)) throw new Error('Novora benötigt Rollen verwalten und muss über der Verify-Rolle stehen.');
-    if (section === 'verify' && c.removeRoleId) { const remove = await i.guild.roles.fetch(c.removeRoleId).catch(() => null);
-      if (!remove || remove.position >= me.roles.highest.position) throw new Error('Novora kann die zu entfernende Rolle nicht verwalten.'); }
+    if (section === 'verify' && c.removeRoleId) {
+      if (c.removeRoleId === c.roleId) throw new Error('Die Verify-Rolle und die zu entfernende Rolle müssen unterschiedlich sein.');
+      const remove = await i.guild.roles.fetch(c.removeRoleId).catch(() => null);
+      if (!remove || remove.position >= me.roles.highest.position) throw new Error('Novora kann die zu entfernende Rolle nicht verwalten. Die Bot-Rolle muss darüber stehen.');
+    }
     if (section === 'verify' && c.failureAction === 'kick' && !me.permissions.has(PermissionFlagsBits.KickMembers)) throw new Error('Für Kick bei falschem Captcha benötigt Novora Mitglieder kicken.');
     if (section === 'verify' && c.failureAction === 'timeout' && !me.permissions.has(PermissionFlagsBits.ModerateMembers)) throw new Error('Für Timeout benötigt Novora Mitglieder moderieren.');
     if (section === 'tickets' && (!me.permissions.has(PermissionFlagsBits.ManageChannels) || !categories(c).length)) throw new Error('Novora benötigt Kanäle verwalten und mindestens eine aktive Ticket-Kategorie.');
@@ -526,7 +536,18 @@ async function handleSetupInteraction(i) {
     if (action === 'ai-options') { const s = await getGuildSettings(i.guildId); await i.reply({ content: 'KI-Ticket-Assistent: Modus wählen', ephemeral: true,
       components: [row(button('ai-mode:auto', 'Automatische Antworten'), button('ai-mode:staff', 'Nur Staff-Vorschläge'), button('ai-mode:off', 'Aus'))] }); return true; }
     if (action === 'ai-channel-toggle') { const s = await getGuildSettings(i.guildId);
-      if (!(s.ai?.channelIds?.length || s.ai?.channelId)) throw new Error('Wähle zuerst mindestens einen KI-Antwortkanal aus.');
+      const channelIds = [...new Set([...(s.ai?.channelIds || []), s.ai?.channelId].filter(Boolean))];
+      if (!channelIds.length) throw new Error('Wähle zuerst mindestens einen KI-Antwortkanal aus.');
+      if (!(s.ai?.enabled && s.ai?.channelEnabled)) {
+        const me = i.guild.members.me || await i.guild.members.fetchMe();
+        const required = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.EmbedLinks];
+        for (const channelId of channelIds) {
+          const channel = await i.guild.channels.fetch(channelId).catch(() => null);
+          if (!channel?.isTextBased() || channel.isThread?.()) throw new Error('Ein ausgewählter KI-Kanal fehlt oder ist kein normaler Textkanal.');
+          if (!channel.permissionsFor(me)?.has(required)) throw new Error(`Novora braucht in <#${channelId}> „Kanal ansehen“, „Nachrichten senden“, „Nachrichtenverlauf lesen“ und „Links einbetten“.`);
+        }
+      }
       const next = await patch(i, 'ai', { channelEnabled: !(s.ai?.enabled && s.ai?.channelEnabled), enabled: true }); await view(i, 'ai', next); return true; }
     if (action === 'ai-analyze') {
       const s = await getGuildSettings(i.guildId), plan = analyzeGuild(i.guild, s), token = Math.random().toString(36).slice(2, 12);
