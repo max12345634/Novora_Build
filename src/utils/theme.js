@@ -1,13 +1,15 @@
 const { EmbedBuilder } = require('discord.js');
 const { parseColor, validHttpUrl } = require('../features/embeds');
+const { DESIGN_BY_ID } = require('../features/designs');
 const imageSource = (value) => validHttpUrl(value) || (typeof value === 'string' && /^attachment:\/\/[a-z0-9_.-]{1,100}$/i.test(value) ? value : null);
 function panel(guild, settings, { title, description, imageUrl, thumbnailUrl, color, fields = [] }) {
   const brand = settings.branding || {};
+  const design = DESIGN_BY_ID[brand.designId] || null;
   const project = brand.projectName || guild.name;
   const sharedFooterText = String(brand.footerText || project).slice(0, 2048);
   const serverIcon = typeof guild.iconURL === 'function' ? guild.iconURL({ extension: 'png', size: 64 }) : null;
   const embed = new EmbedBuilder()
-    .setColor(parseColor(color || brand.primaryColor, 0x5865f2))
+    .setColor(parseColor(color || brand.primaryColor || design?.primaryColor, 0x5865f2))
     .setAuthor({ name: String(project).slice(0, 256), iconURL: validHttpUrl(brand.logoUrl) || serverIcon || undefined })
     .setTitle(String(title || project).slice(0, 256))
     .setDescription(String(description || ' ').slice(0, 4096))

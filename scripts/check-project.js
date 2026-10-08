@@ -4,7 +4,7 @@ const { GatewayIntentBits } = require('discord.js');
 const { collectCommandFiles } = require('../src/loaders/commands');
 const { createCaptchaImage, createCaptchaEmbed } = require('../src/features/verify');
 const { makeForm } = require('../src/features/orders');
-const { setupMenu, ticketWizard, typePicker, categoryModal, systemView, designModal, editModal, categoryManage, applicationManage, assetUploadModal } = require('../src/features/setup');
+const { setupMenu, homeComponents, ticketWizard, typePicker, categoryModal, systemView, designModal, editModal, categoryManage, applicationManage, assetUploadModal } = require('../src/features/setup');
 const { applicationPanel } = require('../src/features/applications');
 const { createPanelEmbed, createVerifyButton } = require('../src/features/verify');
 const { createLifecycleEmbeds } = require('../src/features/welcome');
@@ -12,6 +12,8 @@ const { SERVER_TYPES, suggest } = require('../src/features/presets');
 const { form, panelPayload } = require('../src/features/tickets');
 const { modal: applicationModal } = require('../src/features/applications');
 const { migrateGuild } = require('../src/utils/guildSettings');
+const { DESIGNS } = require('../src/features/designs');
+const { templateForCode } = require('../src/features/setupPresets');
 const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? walk(path.join(dir, entry.name)) : [path.join(dir, entry.name)]);
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
 function commandOptions(options = [], context = '') {
@@ -92,6 +94,11 @@ async function main() {
   checkMessage(panelPayload(guild, settings));
   for (let step = 1; step <= 6; step++) checkMessage(ticketWizard({ ...settings.tickets, step }, settings, guild));
   checkMessage(typePicker('', 0)); checkMessage({ components: [setupMenu()] });
+  checkMessage({ components: homeComponents() });
+  assert(DESIGNS.length === 10 && new Set(DESIGNS.map(v => v.id)).size === 10, 'Zehn eindeutige Designstile fehlen');
+  const allInOne = templateForCode('0908', guild.name);
+  assert(allInOne?.tickets.categories.length > 0 && allInOne.ai.channelEnabled === false, 'Vorlage 0908 ist ungültig oder sofort aktiv');
+  assert(templateForCode('0000', guild.name) === null, 'Unbekannte Vorlagen-Codes werden akzeptiert');
   for (const section of ['tickets', 'verify', 'welcome', 'logs', 'applications', 'branding', 'ai']) {
     checkMessage(systemView(guild, settings, section)); checkModal(designModal(section));
   }

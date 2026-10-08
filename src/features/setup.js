@@ -8,8 +8,11 @@ const { createPanelEmbed, createVerifyButton } = require('./verify');
 const { createLifecycleEmbeds } = require('./welcome');
 const { applicationPanel, sendApplicationPanel } = require('./applications');
 const { testAnswer, setupSuggestions } = require('./ai');
+const { DESIGNS } = require('./designs');
+const { templateForCode, analyzeGuild, draftFromAnalysis } = require('./setupPresets');
 const { Routes } = require('discord.js');
 const searches = new Map();
+const serverPlans = new Map();
 const menuItems = [
   ['tickets', '🎫 Tickets', 'Kategorien, Formulare und Panel'], ['verify', '✅ Verify', 'Captcha und Rollen'],
   ['welcome', '👋 Welcome / Leave', 'Nachrichten beim Beitritt und Austritt'], ['logs', '📋 Logs', 'Ereignisse und Protokolle'],
@@ -26,6 +29,7 @@ const input = (id, label, value = '', style = TextInputStyle.Short, max = 1000, 
 const modal = (id, title, fields) => new ModalBuilder().setCustomId(`setup:${id}`).setTitle(title.slice(0, 45)).addComponents(fields);
 function setupMenu() { return row(new StringSelectMenuBuilder().setCustomId('setup:menu').setPlaceholder('System auswählen …')
   .addOptions(menuItems.map(([value, label, description]) => ({ value, label, description })))); }
+function homeComponents() { return [setupMenu(), row(button('template-code', 'Vorlagen-Code eingeben', ButtonStyle.Primary))]; }
 function baseEmbed(guild, settings = {}) { return panel(guild, settings, { title: '⚙️ Novora Setup', description: 'Wähle ein System. Deine Änderungen gelten nur für diesen Server. Panels werden erst bei „Aktivieren“ veröffentlicht.',
   fields: menuItems.map(([, label, description]) => ({ name: label, value: description, inline: true })) })[0]; }
 const back = () => row(button('home', '← Übersicht'));
@@ -38,23 +42,26 @@ function systemView(guild, s, section) {
     { name: 'Bilder-Speicher', value: s.branding?.assetChannelId ? `<#${s.branding.assetChannelId}>` : 'Noch nicht gewählt' }
   ] : section === 'ai' ? [{ name: 'KI allgemein', value: c.enabled ? (c.autoReply ? '✅ Aktiv' : '🟡 Nur Vorschläge') : '○ Aus', inline: true },
     { name: 'Ticket-Hilfe', value: c.enabled && c.ticketEnabled ? '✅ Aktiv' : '○ Aus', inline: true },
-    { name: 'Antwortkanal', value: c.channelId ? `<#${c.channelId}> · ${c.enabled && c.channelEnabled ? '✅ aktiv' : '○ pausiert'}` : 'Kein Kanal ausgewählt', inline: true },
+    { name: 'Antwortkanäle', value: (c.channelIds?.length ? c.channelIds : c.channelId ? [c.channelId] : []).map(id => `<#${id}>`).join(', ') || 'Keine Kanäle ausgewählt', inline: true },
     { name: 'Wissensbasis', value: `${c.faq?.length || 0} FAQ · ${c.links?.length || 0} Links` }] : [{ name: 'Status', value: c.enabled ? '✅ Aktiv' : '○ Inaktiv' }];
   const embeds = panel(guild, s, { title: menuItems.find(v => v[0] === section)?.[1] || section,
     description: section === 'branding'
-      ? 'Hier legst du das gemeinsame Novora-Design fest. Footer-Text und Footer-Bild erscheinen automatisch auf allen Panels. Wähle zuerst einen privaten Textkanal als Bildspeicher.'
-      : section === 'ai' ? 'Wähle einen Textkanal für automatische Fragen-Antworten. Novora nutzt nur das Wissen dieses Servers und gibt unsichere oder sensible Fälle an das Team weiter.'
+      ? 'Hier legst du das gemeinsame Novora-Design fest. Wähle aus zehn Farb- und Layoutstilen. Discord erlaubt Bots keine eigenen Schriftarten; Footer-Text und Footer-Bild gelten automatisch für alle Panels. Wähle zuerst einen privaten Textkanal als Bildspeicher.'
+      : section === 'ai' ? 'Wähle bis zu fünf Textkanäle für automatische Fragen-Antworten. Die Serveranalyse liest nur sichtbare Kanal- und Rollennamen, keine Nachrichten oder privaten Tickets. Unsichere Fragen gehen an das Team.'
       : 'Konfiguriere die Einstellungen. Prüfe die Vorschau vor der Veröffentlichung.', fields });
   const components = [row(button(`edit:${section}`, 'Bearbeiten', ButtonStyle.Primary),
     button(`preview:${section}`, 'Vorschau'), button(`toggle:${section}`, c.enabled ? 'Deaktivieren' : 'Aktivieren', c.enabled ? ButtonStyle.Danger : ButtonStyle.Success),
-    button(`design:${section}`, 'Farbe'), button(`reset:${section}`, 'Zurücksetzen', ButtonStyle.Danger)), back()];
+    button(`design:${section}`, 'Farbe'), button(`reset:${section}`, 'Zurücksetzen', ButtonStyle.Danger)),
+    row(button('home', '← Übersicht'), button('template-code', 'Code-Vorlage'))];
   if (section === 'tickets') return ticketWizard(c, s, guild);
   if (section === 'ai') components.splice(1, 0,
     row(button('ai-test', 'KI testen'), button('ai-options', 'Ticket-Modus'), button('ai-channel-toggle', c.enabled && c.channelEnabled ? 'Kanal-KI pausieren' : 'Kanal-KI aktivieren', c.enabled && c.channelEnabled ? ButtonStyle.Danger : ButtonStyle.Success), button('ai-analyze', 'Server analysieren')),
-    row(new ChannelSelectMenuBuilder().setCustomId('setup:pick:ai:channelId').setPlaceholder('KI-Antwortkanal auswählen').addChannelTypes(ChannelType.GuildText)),
+    row(new ChannelSelectMenuBuilder().setCustomId('setup:pick:ai:channelIds').setPlaceholder('KI-Antwortkanäle auswählen (max. 5)').addChannelTypes(ChannelType.GuildText).setMinValues(0).setMaxValues(5)),
     row(new RoleSelectMenuBuilder().setCustomId('setup:pick:ai:teamRoleId').setPlaceholder('Rolle für menschliche Übergaben (optional)').setMinValues(0)));
   if (section === 'branding') components.splice(1, 0, row(button('assets:branding', 'Bilder aus Galerie', ButtonStyle.Primary), button('brand-profile', 'Bot-Profil')),
-    row(new ChannelSelectMenuBuilder().setCustomId('setup:pick:branding:assetChannelId').setPlaceholder('Privaten Bilder-Speicherkanal wählen').addChannelTypes(ChannelType.GuildText)));
+    row(new ChannelSelectMenuBuilder().setCustomId('setup:pick:branding:assetChannelId').setPlaceholder('Privaten Bilder-Speicherkanal wählen').addChannelTypes(ChannelType.GuildText)),
+    row(new StringSelectMenuBuilder().setCustomId('setup:design-select').setPlaceholder(`Designstil: ${DESIGNS.find(v => v.id === s.branding?.designId)?.name || 'Midnight'}`)
+      .addOptions(DESIGNS.map(v => ({ label: v.name, value: v.id, description: `Akzent ${v.accentColor}` })))));
   if (section === 'welcome') components.splice(1, 0, row(button('edit-leave', 'Leave gestalten'), button('assets:welcome', 'Welcome-Bild'), button('assets:leave', 'Leave-Bild'), button('preview:leave', 'Leave-Vorschau')));
   if (section === 'applications') components.splice(1, 0, row(button('application-manage', 'Bewerbungstypen verwalten'), button('assets:applications', 'Panel-Bild')));
   if (section === 'verify') components.splice(1, 0, row(button('assets:verify', 'Verify-Bild aus Galerie'), new ChannelSelectMenuBuilder().setCustomId('setup:pick:verify:channelId').setPlaceholder('Verify-Kanal').addChannelTypes(ChannelType.GuildText)),
@@ -264,7 +271,7 @@ async function handleSetupInteraction(i) {
   if (!i.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) { await i.reply({ content: 'Du benötigst Server verwalten.', ephemeral: true }); return true; }
   const parts = i.customId.split(':'), action = parts[1];
   try {
-    if (action === 'home') { const s = await getGuildSettings(i.guildId); await i.update({ embeds: [baseEmbed(i.guild, s)], components: [setupMenu()] }); return true; }
+    if (action === 'home') { const s = await getGuildSettings(i.guildId); await i.update({ embeds: [baseEmbed(i.guild, s)], components: homeComponents() }); return true; }
     if (action === 'menu') { await view(i, i.values[0], await getGuildSettings(i.guildId)); return true; }
     if (action === 'type-search') { await i.showModal(modal('search', 'Servertyp suchen', [input('query', 'Name oder Stichwort', '', undefined, 80)])); return true; }
     if (action === 'search' && i.isModalSubmit()) { const token = Math.random().toString(36).slice(2, 12);
@@ -349,7 +356,40 @@ async function handleSetupInteraction(i) {
     if (action === 'category-order' && i.isModalSubmit()) { const ids = i.fields.getTextInputValue('ids').split(',').map(v => v.trim()); const old = (await getGuildSettings(i.guildId)).tickets.categories || [];
       if (ids.length !== old.length || new Set(ids).size !== old.length || ids.some(v => !old.find(c => c.id === v))) throw new Error('Gib jede Kategorie-ID genau einmal an.');
       const next = await patch(i, 'tickets', { categories: ids.map(id => old.find(v => v.id === id)) }); await i.reply({ ...ticketWizard(next.tickets, next, i.guild), ephemeral: true }); return true; }
-    if (action === 'pick') { const section = parts[2], field = parts[3]; const s = await patch(i, section, { [field]: i.values[0] || null }); await view(i, section, s); return true; }
+    if (action === 'pick') { const section = parts[2], field = parts[3];
+      const value = field === 'channelIds' ? [...new Set(i.values)].slice(0, 5) : (i.values[0] || null);
+      const s = await patch(i, section, field === 'channelIds' ? { channelIds: value, channelId: value[0] || null } : { [field]: value });
+      await view(i, section, s); return true; }
+    if (action === 'design-select') {
+      const design = DESIGNS.find(value => value.id === i.values[0]); if (!design) throw new Error('Dieses Design gibt es nicht.');
+      const s = await patch(i, 'branding', { designId: design.id, primaryColor: design.primaryColor, accentColor: design.accentColor });
+      await view(i, 'branding', s); return true;
+    }
+    if (action === 'template-code') { await i.showModal(modal('template-code-submit', 'Novora-Vorlage laden', [input('code', 'Vorlagen-Code', '', undefined, 20, true)])); return true; }
+    if (action === 'template-code-submit' && i.isModalSubmit()) {
+      const template = templateForCode(i.fields.getTextInputValue('code'), i.guild.name);
+      if (!template) throw new Error('Unbekannter Vorlagen-Code. Verfügbare Startvorlage: 0908.');
+      const preview = panel(i.guild, { branding: template.branding }, { title: `Vorlage ${template.code} · ${template.label}`,
+        description: 'Diese Vorlage richtet Entwürfe ein. Bestehende Werte bleiben erhalten. Kanäle und Panels werden erst durch eigene, bestätigte Aktionen erstellt oder veröffentlicht.',
+        fields: [{ name: 'Designstil', value: 'Midnight', inline: true },
+          { name: 'Ticket-Kategorien', value: template.tickets.categories.map(value => `${value.emoji} ${value.name}`).join('\n').slice(0, 1000) },
+          { name: 'Weitere Entwürfe', value: 'Verify · Welcome/Leave · Logs · KI-Support' }] });
+      await i.reply({ embeds: preview, components: [row(button('template-apply:0908', 'Entwurf übernehmen', ButtonStyle.Success), button('home', 'Abbrechen'))], ephemeral: true }); return true;
+    }
+    if (action === 'template-apply' && parts[2] === '0908') {
+      const template = templateForCode('0908', i.guild.name);
+      await updateGuildSettings(i.guildId, old => {
+        const ai = { ...template.ai, ...old.ai, channelIds: old.ai?.channelIds || template.ai.channelIds };
+        const branding = { ...template.branding, ...old.branding,
+          designId: template.branding.designId, primaryColor: template.branding.primaryColor, accentColor: template.branding.accentColor,
+          projectName: old.branding?.projectName || template.branding.projectName, footerText: old.branding?.footerText || template.branding.footerText };
+        return { branding, tickets: { ...template.tickets, ...old.tickets, categories: old.tickets?.categories?.length ? old.tickets.categories : template.tickets.categories,
+          serverType: old.tickets?.serverType || template.tickets.serverType, serverDescription: old.tickets?.serverDescription || template.tickets.serverDescription },
+          verify: { ...template.verify, ...old.verify }, welcome: { ...template.welcome, ...old.welcome }, leave: { ...template.leave, ...old.leave },
+          logs: { ...template.logs, ...old.logs }, applications: { ...template.applications, ...old.applications }, ai };
+      });
+      await i.update({ content: '✅ Vorlage 0908 wurde als serverbezogener Entwurf übernommen. Bestehende Kategorien und Werte blieben erhalten. Wähle jetzt Server analysieren, um passende Kanäle vorzuschlagen.', embeds: [], components: [] }); return true;
+    }
     if (action === 'reset') { await i.reply({ content: `Soll ${parts[2]} wirklich zurückgesetzt und deaktiviert werden? Laufende Tickets/Bewerbungen bleiben gespeichert.`, ephemeral: true,
       components: [row(button(`reset-confirm:${parts[2]}`, 'Ja, zurücksetzen', ButtonStyle.Danger))] }); return true; }
     if (action === 'reset-confirm') { const section = parts[2];
@@ -396,15 +436,63 @@ async function handleSetupInteraction(i) {
     if (action === 'ai-options') { const s = await getGuildSettings(i.guildId); await i.reply({ content: 'KI-Ticket-Assistent: Modus wählen', ephemeral: true,
       components: [row(button('ai-mode:auto', 'Automatische Antworten'), button('ai-mode:staff', 'Nur Staff-Vorschläge'), button('ai-mode:off', 'Aus'))] }); return true; }
     if (action === 'ai-channel-toggle') { const s = await getGuildSettings(i.guildId);
-      if (!s.ai?.channelId) throw new Error('Wähle zuerst den KI-Antwortkanal aus.');
+      if (!(s.ai?.channelIds?.length || s.ai?.channelId)) throw new Error('Wähle zuerst mindestens einen KI-Antwortkanal aus.');
       const next = await patch(i, 'ai', { channelEnabled: !(s.ai?.enabled && s.ai?.channelEnabled), enabled: true }); await view(i, 'ai', next); return true; }
-    if (action === 'ai-analyze') { const s = await getGuildSettings(i.guildId), proposal = setupSuggestions(s);
-      await i.reply({ embeds: panel(i.guild, s, { title: '🤖 Serveranalyse · Vorschlag',
-        description: 'Novora nutzt deine Serverbeschreibung und regelbasierte Presets. Es wird noch nichts veröffentlicht.',
-        fields: [{ name: 'Ticket-Kategorien', value: proposal.categories.map(v => v.name).join(', ').slice(0, 1024) },
-          { name: 'Bewerbungen', value: proposal.applications.map(v => v.name).join(', ') || 'Keine erkannt' },
-          { name: 'Weitere Empfehlungen', value: 'Verify und Basis-Logging prüfen' }] }),
-        components: [row(button('ai-accept', 'Vorschläge übernehmen', ButtonStyle.Success), button('home', 'Verwerfen'))], ephemeral: true }); return true; }
+    if (action === 'ai-analyze') {
+      const s = await getGuildSettings(i.guildId), plan = analyzeGuild(i.guild, s), token = Math.random().toString(36).slice(2, 12);
+      serverPlans.set(token, { userId: i.user.id, guildId: i.guildId, plan, expires: Date.now() + 900000 });
+      let aiNote = '';
+      if (s.ai?.enabled && process.env.NOVORA_AI_ENDPOINT && process.env.NOVORA_AI_API_KEY) {
+        await i.deferReply({ ephemeral: true });
+        const snapshot = { serverName: plan.guildName, description: plan.description,
+          channels: plan.channels.map(v => ({ name: v.name, type: v.type })), roles: plan.roles.map(v => v.name),
+          suggestedTicketCategories: plan.categories.map(v => v.name) };
+        const note = await testAnswer(s, 'Analysiere diese Serverstruktur und nenne kurz die passendsten Support- und Setup-Schwerpunkte. Erfinde keine Rollen, Regeln oder Kanäle. Dies ist nur ein Vorschlag, führe keine Änderungen aus.', JSON.stringify(snapshot));
+        if (!/keine sichere antwort|teammitglied weiterhelfen/i.test(note)) aiNote = note.slice(0, 1000);
+      }
+      const channelSummary = plan.recommendations.map(v => `${v.exists ? '✅ vorhanden' : '＋ Vorschlag'} · #${v.name}`).join('\n');
+      const channelNames = (plan.channels.slice(0, 30).map(v => `#${v.name}`).join(' · ') || 'Keine sichtbaren Kanäle gefunden').slice(0, 900);
+      const embeds = panel(i.guild, s, { title: '🤖 Serveranalyse · Vorschau',
+        description: 'Ich habe die für Novora sichtbare Serverstruktur ausgewertet. Es wurden keine Nachrichten, privaten Inhalte oder Rollenmitgliedschaften durchsucht. Noch nichts wird geändert.',
+        fields: [{ name: 'Erkannte Struktur', value: `${plan.channelCount} sichtbare Kanäle · ${plan.roleCount} Rollen\n${channelNames}` },
+          { name: 'Rollen (nur Namen, keine Änderungen)', value: plan.roles.slice(0, 20).map(v => `@${v.name}`).join(' · ').slice(0, 1000) || 'Keine Rollen erkannt' },
+          { name: 'Vorgeschlagene Bereiche', value: channelSummary },
+          { name: 'Ticket-Vorschläge', value: plan.categories.slice(0, 10).map(v => `${v.emoji || '🎫'} ${v.name}`).join('\n').slice(0, 1024) },
+          ...(aiNote ? [{ name: 'KI-Einschätzung', value: aiNote }] : [])] });
+      const payload = { embeds, components: [row(button(`ai-plan-apply:${token}`, 'Konfiguration als Entwurf übernehmen', ButtonStyle.Primary)),
+        row(button(`ai-plan-create:${token}`, 'Vorgeschlagene Kanäle erstellen', ButtonStyle.Success), button('home', 'Abbrechen'))], ephemeral: true };
+      if (i.deferred) await i.editReply(payload); else await i.reply(payload);
+      return true;
+    }
+    if (action === 'ai-plan-apply' || action === 'ai-plan-create') {
+      const saved = serverPlans.get(parts[2]);
+      if (!saved || saved.userId !== i.user.id || saved.guildId !== i.guildId || saved.expires < Date.now()) throw new Error('Diese Analyse ist abgelaufen. Bitte starte sie erneut.');
+      if (action === 'ai-plan-apply') {
+        await updateGuildSettings(i.guildId, old => draftFromAnalysis(saved.plan, old));
+        serverPlans.delete(parts[2]);
+        await i.update({ content: '✅ Die Analyse wurde als Entwurf übernommen. Systeme bleiben deaktiviert, bis du sie einzeln prüfst und aktivierst.', embeds: [], components: [] }); return true;
+      }
+      await i.deferReply({ ephemeral: true });
+      const me = i.guild.members.me || await i.guild.members.fetchMe();
+      if (!me.permissions.has(PermissionFlagsBits.ManageChannels)) throw new Error('Zum Erstellen der vorgeschlagenen Kanäle benötigt Novora „Kanäle verwalten“.');
+      const missing = saved.plan.recommendations.filter(v => !v.existingId);
+      if (i.guild.channels.cache.size + missing.length > 500) throw new Error('Discord erlaubt in diesem Server keine weiteren Kanäle.');
+      const results = [];
+      for (const item of saved.plan.recommendations) {
+        try {
+          const channel = item.existingId ? await i.guild.channels.fetch(item.existingId).catch(() => null)
+            : await i.guild.channels.create({ name: item.name, type: ChannelType.GuildText, reason: `Novora Setup-Plan, bestätigt von ${i.user.tag}` });
+          if (channel) results.push({ ...item, existingId: channel.id });
+        } catch (error) { results.push({ ...item, error: error.message }); }
+      }
+      const appliedPlan = { ...saved.plan, recommendations: results.filter(v => v.existingId) };
+      await updateGuildSettings(i.guildId, old => draftFromAnalysis(appliedPlan, old));
+      const createdCount = results.filter(v => !saved.plan.recommendations.find(original => original.name === v.name)?.existingId && v.existingId).length;
+      const failed = results.filter(v => v.error);
+      serverPlans.delete(parts[2]);
+      await i.editReply({ content: `✅ ${createdCount} Kanäle erstellt; vorhandene Kanäle wurden wiederverwendet. ${failed.length ? `Nicht erstellt: ${failed.map(v => `#${v.name}`).join(', ')}.` : ''}\nKanäle sind zunächst öffentlich und enthalten noch keine Panels. Prüfe die Berechtigungen und aktiviere die einzelnen Panels in /setup.` });
+      return true;
+    }
     if (action === 'ai-accept') { const s = await getGuildSettings(i.guildId), proposal = setupSuggestions(s);
       await updateGuildSettings(i.guildId, old => ({ tickets: { ...old.tickets, categories: old.tickets.categories?.length ? old.tickets.categories : proposal.categories },
         applications: { ...old.applications, types: old.applications.types?.length ? old.applications.types : proposal.applications },
@@ -453,4 +541,4 @@ function categoryModal(c = {}) { return modal(`category-save:${c.id || ''}`, c.i
   input('description', 'Beschreibung', c.description, undefined, 100),
   input('prefix', 'Ticket-Kanal-Präfix', c.prefix, undefined, 30),
   input('questions', 'Formularfragen je Zeile (max. 20)', (c.questions || []).map(q => q.label).join('\n'), TextInputStyle.Paragraph, 1000) ]); }
-module.exports = { baseEmbed, setupMenu, handleSetupInteraction, ticketWizard, typePicker, categoryModal, systemView, designModal, editModal, categoryManage, applicationManage, assetUploadModal };
+module.exports = { baseEmbed, setupMenu, homeComponents, handleSetupInteraction, ticketWizard, typePicker, categoryModal, systemView, designModal, editModal, categoryManage, applicationManage, assetUploadModal };

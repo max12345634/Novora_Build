@@ -30,8 +30,11 @@ function migrateGuild(input = {}) {
         { id: 'more', label: 'Weitere Informationen', required: false }
       ] }];
   }
+  const ai = { ...(source.ai || {}) };
+  if (!Array.isArray(ai.channelIds)) ai.channelIds = ai.channelId ? [ai.channelId] : [];
+  ai.channelIds = [...new Set(ai.channelIds.filter(value => typeof value === 'string' && /^\d{17,20}$/.test(value)))].slice(0, 5);
   return { ...source, schemaVersion: VERSION, branding: { ...(source.branding || {}) }, tickets,
-    applications, ai: { ...(source.ai || {}) } };
+    applications, ai };
 }
 async function readAllSettings() {
   try {

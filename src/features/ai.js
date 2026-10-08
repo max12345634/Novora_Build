@@ -88,7 +88,8 @@ async function answerMessage(message, settings, context = '') {
     await message.reply({ embeds: panel(message.guild, settings, { title: '👥 Ein Teammitglied übernimmt',
       description: 'Das Anliegen sollte ein Mensch prüfen. Ich gebe es an das Team weiter.' }), allowedMentions: { parse: [] } });
     const roleId = settings.ai?.teamRoleId || settings.tickets?.teamRoleId;
-    if (roleId) await message.channel.send({ content: `<@&${roleId}> Bitte übernehmt diese Anfrage.`, allowedMentions: { roles: [roleId] } });
+    const staffRole = roleId && roleId !== message.guild.id ? message.guild.roles.cache.get(roleId) : null;
+    if (staffRole && !staffRole.managed) await message.channel.send({ content: `<@&${staffRole.id}> Bitte übernehmt diese Anfrage.`, allowedMentions: { users: [], roles: [staffRole.id], parse: [] } });
     return;
   }
   const answer = await testAnswer(settings, message.content, context);
@@ -96,7 +97,8 @@ async function answerMessage(message, settings, context = '') {
     await message.reply({ embeds: panel(message.guild, settings, { title: '👥 Das Team hilft weiter',
       description: 'Dazu finde ich keine verlässliche Information. Ein Teammitglied kann dir weiterhelfen.' }), allowedMentions: { parse: [] } });
     const roleId = settings.ai?.teamRoleId || settings.tickets?.teamRoleId;
-    if (roleId) await message.channel.send({ content: `<@&${roleId}> Eine Frage benötigt eure Hilfe.`, allowedMentions: { roles: [roleId] } });
+    const staffRole = roleId && roleId !== message.guild.id ? message.guild.roles.cache.get(roleId) : null;
+    if (staffRole && !staffRole.managed) await message.channel.send({ content: `<@&${staffRole.id}> Eine Frage benötigt eure Hilfe.`, allowedMentions: { users: [], roles: [staffRole.id], parse: [] } });
     return;
   }
   await message.reply({ embeds: panel(message.guild, settings, { title: `🤖 ${settings.branding?.projectName || message.guild.name} · Antwort`,
@@ -117,10 +119,17 @@ async function assistChannel(message) {
   if (!message.guild || message.author.bot || !message.content || !message.channel?.isTextBased?.() || message.channel?.isThread?.()) return;
   if (!isQuestion(message.content)) return;
   const settings = await getGuildSettings(message.guild.id), ai = settings.ai || {};
-  if (!ai.enabled || !ai.channelEnabled || !ai.channelId || message.channel.id !== ai.channelId) return;
+  const channelIds = [...new Set([...(Array.isArray(ai.channelIds) ? ai.channelIds : []), ai.channelId].filter(Boolean))];
+  if (!ai.enabled || !ai.channelEnabled || !channelIds.includes(message.channel.id)) return;
   if (message.channel.topic?.startsWith('novora-ticket:')) return;
   const history = await channelContext(message);
   await answerMessage(message, settings, `Öffentlicher Hilfekanal. Letzte Nachrichten:\n${history}`);
+}
+
+function isConfiguredResponseChannel(settings, channelId) {
+  const ai = settings?.ai || {};
+  return Boolean(ai.enabled && ai.channelEnabled &&
+    [...new Set([...(Array.isArray(ai.channelIds) ? ai.channelIds : []), ai.channelId].filter(Boolean))].includes(channelId));
 }
 
 function setupSuggestions(settings) {
@@ -134,4 +143,4 @@ function setupSuggestions(settings) {
     applications: applicationNames.map(name => ({ id: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), name, emoji: '📝', enabled: true,
       questions: [{ id: 'motivation', label: 'Warum möchtest du dich bewerben?', style: 'paragraph' }] })) };
 }
-module.exports = { fallback, sensitive, isQuestion, testAnswer, assistTicket, assistChannel, setupSuggestions };
+module.exports = { fallback, sensitive, isQuestion, testAnswer, assistTicket, assistChannel, setupSuggestions, isConfiguredResponseChannel };
