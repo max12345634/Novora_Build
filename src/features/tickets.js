@@ -9,6 +9,7 @@ const { suggest } = require('./presets');
 const { logger } = require('../utils/logger');
 const { field } = require('../utils/auditLog');
 const { testAnswer } = require('./ai');
+const { emojiOption, emojiForSymbol } = require('../utils/emojiAssets');
 const drafts = new Map();
 const CATEGORY_ID = 'ticket:category';
 const TOPIC = 'novora-ticket:';
@@ -22,19 +23,19 @@ function parseTopic(value = '') {
   const [requesterId, caseId, state, ownerId] = value.slice(TOPIC.length).split(':');
   return /^\d{17,20}$/.test(requesterId) ? { requesterId, caseId, state, ownerId } : null;
 }
-function controls(ticket) {
+function controls(ticket, client) {
   return [new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('ticket:claim').setLabel(ticket.ownerId ? 'Freigeben' : 'Übernehmen').setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId('ticket:close-request').setLabel('Schließung anfragen').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('ticket:close').setLabel('Schließen').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId('ticket:transcript').setLabel('Transcript').setStyle(ButtonStyle.Secondary)
+    new ButtonBuilder().setCustomId('ticket:claim').setLabel(ticket.ownerId ? 'Freigeben' : 'Übernehmen').setEmoji(emojiOption(client, 'team', '👥')).setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('ticket:close-request').setLabel('Schließung anfragen').setEmoji(emojiOption(client, 'warning', '❔')).setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('ticket:close').setLabel('Schließen').setEmoji(emojiOption(client, 'close', '❌')).setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('ticket:transcript').setLabel('Transcript').setEmoji(emojiOption(client, 'transcript', '📄')).setStyle(ButtonStyle.Secondary)
   ), new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId('ticket:actions').setPlaceholder('Weitere Ticket-Aktionen').addOptions(
-    { label: 'Informationen', value: 'info', emoji: 'ℹ️' }, { label: 'Umbenennen', value: 'rename', emoji: '✏️' },
-    { label: 'Kategorie ändern', value: 'category', emoji: '🏷️' }, { label: 'Priorität ändern', value: 'priority', emoji: '🚩' },
-    { label: 'Nutzer hinzufügen', value: 'add', emoji: '➕' }, { label: 'Nutzer entfernen', value: 'remove', emoji: '➖' },
-    { label: 'Staff-Notiz schreiben', value: 'note', emoji: '🗒️' }, { label: 'Staff-Notizen ansehen', value: 'notes', emoji: '📋' },
-    { label: 'KI-Antwort vorschlagen', value: 'ai', emoji: '🤖' },
-    { label: 'Ticket löschen', value: 'delete', emoji: '🗑️' }
+    { label: 'Informationen', value: 'info', emoji: emojiOption(client, 'case', 'ℹ️') }, { label: 'Umbenennen', value: 'rename', emoji: emojiOption(client, 'settings', '✏️') },
+    { label: 'Kategorie ändern', value: 'category', emoji: emojiOption(client, 'tag', '🏷️') }, { label: 'Priorität ändern', value: 'priority', emoji: emojiOption(client, 'report', '🚩') },
+    { label: 'Nutzer hinzufügen', value: 'add', emoji: emojiOption(client, 'team', '➕') }, { label: 'Nutzer entfernen', value: 'remove', emoji: emojiOption(client, 'user', '➖') },
+    { label: 'Staff-Notiz schreiben', value: 'note', emoji: emojiOption(client, 'transcript', '🗒️') }, { label: 'Staff-Notizen ansehen', value: 'notes', emoji: emojiOption(client, 'logs', '📋') },
+    { label: 'KI-Antwort vorschlagen', value: 'ai', emoji: emojiOption(client, 'ai', '🤖') },
+    { label: 'Ticket löschen', value: 'delete', emoji: emojiOption(client, 'lock', '🗑️') }
   ))];
 }
 function form(category, page = 0, token = '') {
@@ -71,7 +72,7 @@ function panelPayload(guild, settings) {
       .setCustomId(CATEGORY_ID).setPlaceholder('Wähle dein Anliegen …').addOptions(choices.map(v => {
         const count = openCount(c, v.id), capacity = Number(v.capacity) || 0;
         const availability = categoryAtCapacity(c, v) ? `Auslastung ${count}/${capacity} · Team-Pings pausiert` : capacity ? `Offen ${count}/${capacity}` : v.description || v.name;
-        return { label: v.name.slice(0, 100), value: v.id, description: String(availability).slice(0, 100), emoji: v.emoji || undefined };
+        return { label: v.name.slice(0, 100), value: v.id, description: String(availability).slice(0, 100), emoji: emojiForSymbol(guild.client, v.emoji || '🎫') };
       })))], allowedMentions: { parse: [] } };
 }
 async function sendTicketPanel(channel, guild) {
@@ -245,7 +246,7 @@ async function handleTicketInteraction(i) {
         field('Bearbeiter', 'Noch nicht übernommen', true), field('Eröffnet', discordTime(ticket.createdAt), true),
         ...(Number(cat.capacity) > 0 ? [field('Auslastung', `${openCount(c, cat.id) + 1}/${cat.capacity}${pingSuppressed ? ' · Team-Pings pausiert' : ''}`, true)] : []),
         ...questions.slice(0, 5).map(q => ({ name: q.label, value: formatAnswer(ticket.answers[q.id]) }))] }),
-      components: controls(ticket), allowedMentions: { users: [i.user.id], roles: pingRoles } });
+      components: controls(ticket, i.client), allowedMentions: { users: [i.user.id], roles: pingRoles } });
     for (let start = 5; start < questions.length; start += 5) {
       await ch.send({ embeds: panel(i.guild, settings, { title: `Weitere Antworten · #${ticket.caseId}`,
         description: `Fragen ${start + 1}–${Math.min(start + 5, questions.length)}`,
@@ -309,7 +310,7 @@ async function handleTicketInteraction(i) {
     }
     addActivity(t, t.ownerId ? 'Ticket übernommen' : 'Ticket freigegeben', i.user.id, t.ownerId ? `Bearbeiter: ${i.user.tag}` : 'Bearbeiter freigegeben');
     await storeTicket(i, t);
-    await i.update({ components: controls(t) }); await i.followUp({ content: t.ownerId ? `✅ Übernommen von <@${t.ownerId}>.` : 'Ticket wieder freigegeben.' });
+    await i.update({ components: controls(t, i.client) }); await i.followUp({ content: t.ownerId ? `✅ Übernommen von <@${t.ownerId}>.` : 'Ticket wieder freigegeben.' });
     await logTicket(i.guild, t.ownerId ? 'Ticket übernommen' : 'Ticket freigegeben', t, i.user.id, c.logChannelId); return true;
   }
   if (i.isButton() && i.customId === 'ticket:close-request') {
