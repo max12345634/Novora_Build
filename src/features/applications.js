@@ -4,6 +4,7 @@ const { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, ModalBuilder,
 const { getGuildSettings, updateGuildSettings } = require('../utils/guildSettings');
 const { panel } = require('../utils/theme');
 const { sendLog } = require('../utils/auditLog');
+const { emojiForSymbol } = require('../utils/emojiAssets');
 const drafts = new Map();
 const fallbackType = { id: 'team', name: 'Team', emoji: '📝', enabled: true, questions: [
   { id: 'age', label: 'Wie alt bist du?', style: 'short' }, { id: 'experience', label: 'Welche Erfahrungen hast du?' },
@@ -17,7 +18,7 @@ function applicationPanel(guild, s) {
     color: s.applications?.color });
 }
 async function sendApplicationPanel(channel, guild) {
-  const s = await getGuildSettings(guild.id), c = s.applications, options = types(c).slice(0, 25).map(v => ({ label: v.name.slice(0, 100), value: v.id, emoji: v.emoji || '📝' }));
+  const s = await getGuildSettings(guild.id), c = s.applications, options = types(c).slice(0, 25).map(v => ({ label: v.name.slice(0, 100), value: v.id, emoji: emojiForSymbol(guild.client, v.emoji || '📝') }));
   if (!options.length) throw new Error('Mindestens ein Bewerbungstyp fehlt.');
   const payload = { embeds: applicationPanel(guild, s), components: [new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder().setCustomId('application:select').setPlaceholder('Bewerbung auswählen').addOptions(options))], allowedMentions: { parse: [] } };

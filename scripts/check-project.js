@@ -14,6 +14,8 @@ const { modal: applicationModal } = require('../src/features/applications');
 const { migrateGuild } = require('../src/utils/guildSettings');
 const { DESIGNS } = require('../src/features/designs');
 const { templateForCode } = require('../src/features/setupPresets');
+const { EMOJI_NAMES } = require('../src/utils/emojiAssets');
+const { panel } = require('../src/utils/theme');
 const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? walk(path.join(dir, entry.name)) : [path.join(dir, entry.name)]);
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
 function commandOptions(options = [], context = '') {
@@ -63,6 +65,19 @@ function checkModal(m) {
   }
 }
 async function main() {
+  assert(EMOJI_NAMES.length >= 20 && new Set(EMOJI_NAMES).size === EMOJI_NAMES.length, 'Novora Emoji-Set fehlt oder IDs doppeln sich');
+  for (const name of EMOJI_NAMES) {
+    const image = fs.readFileSync(path.resolve(`assets/emojis/${name}.png`));
+    assert(image.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) && image.readUInt32BE(16) === 128 && image.readUInt32BE(20) === 128,
+      `Emoji ${name} ist kein gültiges 128×128 PNG`);
+    assert(image.length <= 256 * 1024, `Emoji ${name} über Discords 256-KiB-Limit`);
+  }
+  for (const [name, width, height] of [['general', 1280, 300], ['verify', 1280, 300], ['ticket', 1280, 300], ['ticket_open', 1280, 300],
+    ['application', 1280, 300], ['welcome', 1280, 300], ['leave', 1280, 300], ['voice', 1280, 300], ['logs', 1280, 300], ['ai', 1280, 300], ['footer', 1280, 160]]) {
+    const image = fs.readFileSync(path.resolve(`assets/banners/${name}.png`));
+    assert(image.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) && image.readUInt32BE(16) === width && image.readUInt32BE(20) === height,
+      `Novora Standardbild ${name} ist ungültig`);
+  }
   for (const file of walk('src').filter(v => v.endsWith('.js'))) {
     require(path.resolve(file)); // Laden prüft gleichzeitig Imports.
   }
@@ -99,6 +114,9 @@ async function main() {
   }
   const guild = { name: 'Beispiel', id: '123456789012345678' }, categories = suggest('community');
   const settings = migrateGuild({ tickets: { categories }, branding: { footerImageUrl: 'https://example.com/footer.png' } });
+  const branded = panel(guild, settings, { title: '🎫 Standard', description: 'Novora Design' });
+  assert(branded[0].toJSON().image.url.endsWith('/general.png') && branded[1].toJSON().image.url === 'https://example.com/footer.png',
+    'Standardbanner oder globales Footer-Bild fehlt.');
   checkMessage(panelPayload(guild, settings));
   for (let step = 1; step <= 6; step++) checkMessage(ticketWizard({ ...settings.tickets, step }, settings, guild));
   checkMessage(typePicker('', 0)); checkMessage({ components: [setupMenu()] });

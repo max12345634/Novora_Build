@@ -10,6 +10,7 @@ const { deflateSync } = require('node:zlib');
 const { getGuildSettings } = require('../utils/guildSettings');
 const { randomBytes, randomInt } = require('node:crypto');
 const { panel } = require('../utils/theme');
+const { emojiOption } = require('../utils/emojiAssets');
 const challenges = new Map();
 const failures = new Map();
 
@@ -130,9 +131,9 @@ function createPanelEmbed(guild, settings, allSettings = {}) {
     footerImageUrl: settings.footerImageUrl });
 }
 
-function createVerifyButton() {
+function createVerifyButton(client) {
   return new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(VERIFY_BUTTON_ID).setLabel('Verifizieren').setEmoji('✅').setStyle(ButtonStyle.Success)
+    new ButtonBuilder().setCustomId(VERIFY_BUTTON_ID).setLabel('Verifizieren').setEmoji(emojiOption(client, 'check', '✅')).setStyle(ButtonStyle.Success)
   );
 }
 
@@ -204,7 +205,7 @@ async function handleVerifySelect(interaction) {
   if (!challenge || challenge.userId !== interaction.user.id || challenge.guildId !== interaction.guildId || challenge.expires < Date.now()) {
     const settings = await getGuildSettings(interaction.guildId);
     await interaction.update({ content: '', embeds: stateEmbeds(interaction.guild, settings, '⌛ Captcha abgelaufen',
-      'Starte die Verifizierung erneut und wähle den neuen Code aus.', 0xF0B232), components: [createVerifyButton()] });
+      'Starte die Verifizierung erneut und wähle den neuen Code aus.', 0xF0B232), components: [createVerifyButton(interaction.client)] });
     return true;
   }
   const expectedCode = challenge.code;
@@ -222,7 +223,7 @@ async function handleVerifySelect(interaction) {
       : attempts >= 3 ? 'Der Captcha-Code war dreimal falsch. Bitte versuche es in fünf Minuten erneut.'
         : 'Der Captcha-Code war falsch. Starte erneut und wähle den passenden Code aus.';
     await interaction.update({ content: '', embeds: stateEmbeds(interaction.guild, settings, '❌ Captcha nicht korrekt', description, 0xED4245),
-      components: action === 'retry' && attempts < 3 ? [createVerifyButton()] : [] });
+      components: action === 'retry' && attempts < 3 ? [createVerifyButton(interaction.client)] : [] });
     if (action === 'retry') return true;
     setTimeout(async () => {
       try {

@@ -10,6 +10,7 @@ const { applicationPanel, sendApplicationPanel } = require('./applications');
 const { testAnswer, setupSuggestions } = require('./ai');
 const { DESIGNS } = require('./designs');
 const { templateForCode, analyzeGuild, draftFromAnalysis } = require('./setupPresets');
+const { installApplicationEmojis } = require('../utils/emojiAssets');
 const { Routes } = require('discord.js');
 const searches = new Map();
 const serverPlans = new Map();
@@ -109,7 +110,7 @@ function systemView(guild, s, section) {
     row(button('ai-test', 'KI testen'), button('ai-options', 'Ticket-Modus'), button('ai-channel-toggle', c.enabled && c.channelEnabled ? 'Kanal-KI pausieren' : 'Kanal-KI aktivieren', c.enabled && c.channelEnabled ? ButtonStyle.Danger : ButtonStyle.Success), button('ai-analyze', 'Server analysieren')),
     row(new ChannelSelectMenuBuilder().setCustomId('setup:pick:ai:channelIds').setPlaceholder('KI-Antwortkanäle auswählen (max. 5)').addChannelTypes(ChannelType.GuildText).setMinValues(0).setMaxValues(5)),
     row(new RoleSelectMenuBuilder().setCustomId('setup:pick:ai:teamRoleId').setPlaceholder('Rolle für menschliche Übergaben (optional)').setMinValues(0)));
-  if (section === 'branding') components.splice(1, 0, row(button('assets:branding', 'Bilder aus Galerie', ButtonStyle.Primary), button('brand-profile', 'Bot-Profil')),
+  if (section === 'branding') components.splice(1, 0, row(button('assets:branding', 'Bilder aus Galerie', ButtonStyle.Primary), button('brand-profile', 'Bot-Profil'), button('emoji-install', 'Novora-Emojis installieren', ButtonStyle.Success)),
     row(new ChannelSelectMenuBuilder().setCustomId('setup:pick:branding:assetChannelId').setPlaceholder('Privaten Bilder-Speicherkanal wählen').addChannelTypes(ChannelType.GuildText)),
     row(new StringSelectMenuBuilder().setCustomId('setup:design-select').setPlaceholder(`Designstil: ${DESIGNS.find(v => v.id === s.branding?.designId)?.name || 'Midnight'}`)
       .addOptions(DESIGNS.map(v => ({ label: v.name, value: v.id, description: `Akzent ${v.accentColor}` })))));
@@ -317,7 +318,7 @@ async function activate(i, section, s) {
     if (section === 'applications' && !me.permissions.has(PermissionFlagsBits.ManageChannels)) throw new Error('Novora benötigt Kanäle verwalten.');
     if (section === 'tickets') { await patch(i, section, { enabled: true }); await sendTicketPanel(channel, i.guild); }
     if (section === 'verify') { const old = c.panelMessageId && await channel.messages.fetch(c.panelMessageId).catch(() => null);
-      const payload = { embeds: createPanelEmbed(i.guild, c, s), components: [createVerifyButton()] };
+      const payload = { embeds: createPanelEmbed(i.guild, c, s), components: [createVerifyButton(i.client)] };
       const msg = old ? await old.edit(payload) : await channel.send(payload);
       await patch(i, section, { enabled: true, panelMessageId: msg.id }); }
     if (section === 'applications') { await patch(i, section, { enabled: true }); await sendApplicationPanel(channel, i.guild); }
@@ -348,6 +349,12 @@ async function handleSetupInteraction(i) {
   if (!i.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) { await i.reply({ content: 'Du benötigst Server verwalten.', ephemeral: true }); return true; }
   const parts = i.customId.split(':'), action = parts[1];
   try {
+    if (action === 'emoji-install') {
+      await i.deferReply({ ephemeral: true });
+      const result = await installApplicationEmojis(i.client, i.user.id);
+      await i.editReply({ content: `✅ Novora-Emoji-Set bereit: **${result.created}** neu installiert, **${result.existing}** waren bereits vorhanden, insgesamt **${result.total}** Emojis. Die Panels verwenden sie automatisch. Wenn Discord noch alte Unicode-Symbole zeigt, starte den Bot einmal neu.` });
+      return true;
+    }
     if (action === 'home') { const s = await getGuildSettings(i.guildId); await i.update({ embeds: [baseEmbed(i.guild, s)], components: homeComponents() }); return true; }
     if (action === 'menu') { await view(i, i.values[0], await getGuildSettings(i.guildId)); return true; }
     if (action === 'voice-info') { await i.reply({ content: 'Wähle den Wartekanal, die Supportrolle und den Textkanal. Beim Aktivieren benötigt Novora „Kanäle verwalten“ und „Mitglieder verschieben“. Leere private Räume werden automatisch gelöscht.', ephemeral: true }); return true; }
