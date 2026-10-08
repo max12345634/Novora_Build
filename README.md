@@ -73,7 +73,7 @@ Ohne Provider arbeitet Novora mit Presets, Schlüsselwörtern und der pro Server
 
 `data/guild-settings.json` bleibt auf dem Hosting-Server und ist nicht in Git. Beim Laden werden ältere Einstellungen auf Schema 2 ergänzt, ohne sie sofort neu zu schreiben. Schreibvorgänge werden seriell und atomar ausgeführt. Bitte das `data/`-Verzeichnis vor einem Hosting-Wechsel sichern; keine Token in die JSON-Datei schreiben.
 
-`GUILD_ID` in der BotHosting-Umgebung muss auf deinen Discord-Server zeigen, wenn du die Commands dort sofort testen willst. Ist die Variable gesetzt, registriert Novora Befehle nur für diese Guild. Ohne `GUILD_ID` registriert Novora global; Discord kann für globale Änderungen bis zu einer Stunde brauchen.
+`GUILD_ID` in der BotHosting-Umgebung muss auf deinen Discord-Server zeigen, wenn du die Commands dort sofort testen willst. Ist die Variable gesetzt, registriert Novora Befehle nur für diese Guild. Beim Start schreibt Novora die gewählte Server-ID in die Konsole und prüft, ob Discord alle Commands bestätigt hat. Ohne `GUILD_ID` registriert Novora global.
 
 ### Automatische Updates von GitHub zu BotHosting
 
