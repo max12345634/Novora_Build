@@ -1,21 +1,25 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const settingsPath = process.env.NOVORA_SETTINGS_PATH || path.join(process.cwd(), 'data', 'guild-settings.json');
-const VERSION = 2;
+const VERSION = 3;
 let queue = Promise.resolve();
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
 function migrateGuild(input = {}) {
   const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
   const tickets = { ...(source.tickets || {}) };
+  if (tickets.records && typeof tickets.records === 'object' && !Array.isArray(tickets.records)) {
+    tickets.records = Object.fromEntries(Object.entries(tickets.records).map(([channelId, ticket]) => [channelId,
+      ticket && typeof ticket === 'object' ? { ...ticket, activity: Array.isArray(ticket.activity) ? ticket.activity : [] } : ticket]));
+  }
   if (tickets.categories && !Array.isArray(tickets.categories)) {
     tickets.categories = Object.entries(tickets.categories).map(([id, c]) => ({ id, name: c.name || c.label || id, ...c }));
   }
   if (tickets.enabled && !tickets.categories) {
     // Bereits veröffentlichte v0.2-Panels verwenden diese IDs. Nur Altserver erhalten sie.
     tickets.categories = [
-      ['general', 'Allgemeiner Support'], ['rules', 'Regel- & RP-Fragen'],
-      ['report', 'Spieler melden'], ['technical', 'Technischer Support'], ['team', 'Team-Beschwerde']
+      ['general', 'Allgemeiner Support'], ['technical', 'Technische Hilfe'],
+      ['account', 'Konto und Zugang'], ['feedback', 'Feedback und Vorschläge'], ['other', 'Sonstiges']
     ].map(([id, name]) => ({ id, name, prefix: id, emoji: '🎫', description: name, enabled: true,
       questions: [{ id: 'topic', label: 'Thema', style: 'paragraph' }] }));
   }
@@ -30,8 +34,16 @@ function migrateGuild(input = {}) {
         { id: 'more', label: 'Weitere Informationen', required: false }
       ] }];
   }
+  const ai = { ...(source.ai || {}) };
+  if (!Array.isArray(ai.channelIds)) ai.channelIds = ai.channelId ? [ai.channelId] : [];
+  ai.channelIds = [...new Set(ai.channelIds.filter(value => typeof value === 'string' && /^\d{17,20}$/.test(value)))].slice(0, 5);
+  const logs = { ...(source.logs || {}) };
+  logs.enabled = logs.enabled === true;
+  logs.profile = ['basis', 'erweitert', 'alles'].includes(logs.profile) ? logs.profile : 'basis';
+  const voiceSupport = { ...(source.voiceSupport || {}) };
+  voiceSupport.rooms = voiceSupport.rooms && typeof voiceSupport.rooms === 'object' && !Array.isArray(voiceSupport.rooms) ? voiceSupport.rooms : {};
   return { ...source, schemaVersion: VERSION, branding: { ...(source.branding || {}) }, tickets,
-    applications, ai: { ...(source.ai || {}) } };
+    applications, ai, logs, voiceSupport };
 }
 async function readAllSettings() {
   try {

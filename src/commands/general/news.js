@@ -1,6 +1,7 @@
-const { ChannelType, EmbedBuilder, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
+const { ChannelType, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { getGuildSettings } = require('../../utils/guildSettings');
-const { validHttpUrl } = require('../../features/embeds');
+const { panel } = require('../../utils/theme');
+const { resolveImageAttachments } = require('../../utils/imageAttachments');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -9,10 +10,10 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
     .addStringOption((option) => option.setName('titel').setDescription('Titel der Ankuendigung.').setRequired(true).setMaxLength(256))
     .addStringOption((option) => option.setName('text').setDescription('Nachrichtentext.').setRequired(true).setMaxLength(4000))
-    .addStringOption((option) => option.setName('bild').setDescription('Optionales grosses Bild als URL.').setMaxLength(512))
-    .addStringOption((option) => option.setName('miniatur').setDescription('Optionales kleines Bild als URL.').setMaxLength(512)),
+    .addAttachmentOption((option) => option.setName('bild').setDescription('Optionales großes Bild aus Fotos/Galerie.'))
+    .addAttachmentOption((option) => option.setName('miniatur').setDescription('Optionales kleines Bild aus Fotos/Galerie.')),
   async execute(interaction) {
-    const settings = (await getGuildSettings(interaction.guildId)).news;
+    const allSettings = await getGuildSettings(interaction.guildId), settings = allSettings.news;
     if (!settings?.enabled || !settings.channelId) {
       await interaction.reply({ content: 'News sind noch nicht eingerichtet. Nutze zuerst /setup news.', ephemeral: true });
       return;
@@ -23,21 +24,24 @@ module.exports = {
       return;
     }
 
-    const embed = new EmbedBuilder()
-      .setColor(0x5865f2)
-      .setTitle(interaction.options.getString('titel', true))
-      .setDescription(interaction.options.getString('text', true))
-      .setFooter({ text: interaction.guild.name });
-    const image = validHttpUrl(interaction.options.getString('bild'));
-    const thumbnail = validHttpUrl(interaction.options.getString('miniatur'));
-    if (image) embed.setImage(image);
-    if (thumbnail) embed.setThumbnail(thumbnail);
-
-    await channel.send({
-      content: settings.roleId ? '<@&' + settings.roleId + '>' : undefined,
-      embeds: [embed],
-      allowedMentions: settings.roleId ? { roles: [settings.roleId], parse: [] } : { parse: [] }
-    });
-    await interaction.reply({ content: 'Ankuendigung wurde in ' + channel + ' gesendet.', ephemeral: true });
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const { files, sources } = await resolveImageAttachments(interaction, ['bild', 'miniatur']);
+      const embeds = panel(interaction.guild, allSettings, {
+        title: interaction.options.getString('titel', true),
+        description: interaction.options.getString('text', true),
+        imageUrl: sources.bild,
+        thumbnailUrl: sources.miniatur,
+        color: settings.color || allSettings.branding?.accentColor
+      });
+      await channel.send({
+        content: settings.roleId ? '<@&' + settings.roleId + '>' : undefined,
+        embeds, files,
+        allowedMentions: settings.roleId ? { roles: [settings.roleId], parse: [] } : { parse: [] }
+      });
+      await interaction.editReply({ content: 'Ankuendigung wurde in ' + channel + ' gesendet. Das gemeinsame Bot-Design wurde übernommen.' });
+    } catch (error) {
+      await interaction.editReply({ content: error.message?.slice(0, 200) || 'Die Ankündigung konnte nicht gesendet werden.' });
+    }
   }
 };

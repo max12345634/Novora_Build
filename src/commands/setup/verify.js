@@ -1,5 +1,5 @@
 const { PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
-const { baseEmbed, setupMenu } = require('../../features/setup');
+const { baseEmbed, homeComponents } = require('../../features/setup');
 const { getGuildSettings } = require('../../utils/guildSettings');
 
 module.exports = {
@@ -14,6 +14,6 @@ module.exports = {
       return;
     }
     const settings = await getGuildSettings(interaction.guildId);
-    await interaction.reply({ embeds: [baseEmbed(interaction.guild, settings)], components: [setupMenu()], ephemeral: true });
+    await interaction.reply({ embeds: [baseEmbed(interaction.guild, settings)], components: homeComponents(), ephemeral: true });
   }
 };

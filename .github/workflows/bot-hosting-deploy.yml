@@ -1,23 +1,43 @@
-name: Optional BotHosting Deploy
+name: Sync BotHosting
 
 on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main
+  workflow_call:
 
 jobs:
-  notify-bot-hosting:
+  sync:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Trigger BotHosting webhook when configured
+      - name: Check BotHosting settings
         env:
-          BOT_HOSTING_WEBHOOK_URL: ${{ secrets.BOT_HOSTING_WEBHOOK_URL }}
+          BOT_HOSTING_API_KEY: ${{ secrets.BOT_HOSTING_API_KEY }}
+          BOT_HOSTING_DEPLOYMENT_ID: ${{ secrets.BOT_HOSTING_DEPLOYMENT_ID }}
+        shell: bash
         run: |
-          if [ -z "$BOT_HOSTING_WEBHOOK_URL" ]; then
-            echo "BOT_HOSTING_WEBHOOK_URL is not configured yet. Skipping deploy trigger."
-            exit 0
+          set -euo pipefail
+          if [[ -z "$BOT_HOSTING_API_KEY" ]]; then
+            echo "::error::GitHub Secret BOT_HOSTING_API_KEY fehlt. Lege ihn unter Settings → Secrets and variables → Actions an."
+            exit 1
+          fi
+          if [[ ! "$BOT_HOSTING_DEPLOYMENT_ID" =~ ^dep_[A-Za-z0-9]+$ ]]; then
+            echo "::error::GitHub Secret BOT_HOSTING_DEPLOYMENT_ID fehlt oder ist ungültig. Verwende die Deployment-ID aus BotHosting."
+            exit 1
           fi
 
-          curl -X POST "$BOT_HOSTING_WEBHOOK_URL"
+      - name: Pull main to BotHosting and restart the bot
+        env:
+          BOT_HOSTING_API_KEY: ${{ secrets.BOT_HOSTING_API_KEY }}
+          BOT_HOSTING_DEPLOYMENT_ID: ${{ secrets.BOT_HOSTING_DEPLOYMENT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! response="$(curl --silent --show-error --fail-with-body --max-time 120 \
+            --request POST \
+            --url "https://bot-hosting.net/api/v1/deployments/${BOT_HOSTING_DEPLOYMENT_ID}/sync" \
+            --header "Authorization: Bearer ${BOT_HOSTING_API_KEY}" \
+            --header "Content-Type: application/json" \
+            --data '{"branch":"main"}')"; then
+            echo "::error::BotHosting-Sync fehlgeschlagen. Prüfe API-Schlüssel, deployments:write, Deployment-ID und GitHub-Verknüpfung."
+            exit 1
+          fi
+          synced_commit="$(jq -er 'select(.ok == true) | .commit | strings | select(length > 0)' <<< "$response")"
+          echo "BotHosting hat Commit ${synced_commit} synchronisiert und den Bot-Neustart angefordert."

@@ -3,7 +3,6 @@ const {
   ButtonBuilder,
   ButtonStyle,
   ChannelType,
-  EmbedBuilder,
   ModalBuilder,
   PermissionFlagsBits,
   TextInputBuilder,
@@ -11,6 +10,7 @@ const {
 } = require('discord.js');
 const { getGuildSettings } = require('../utils/guildSettings');
 const { sendLog } = require('../utils/auditLog');
+const { panel } = require('../utils/theme');
 
 const BUTTON_ID = 'order:open';
 const MODAL_ID = 'order:form';
@@ -47,12 +47,10 @@ function makeForm() {
 }
 
 async function sendOrderPanel(channel, guild) {
+  const settings = await getGuildSettings(guild.id);
   await channel.send({
-    embeds: [new EmbedBuilder()
-      .setColor(0x5865f2)
-      .setTitle('Novora Build · Bestellung')
-      .setDescription('Du möchtest einen Server bauen lassen? Öffne das Formular. Deine Antworten werden anschließend in einem privaten Bestell-Ticket an unser Team gesendet.')
-      .setFooter({ text: guild.name })],
+    embeds: panel(guild, settings, { title: `🛠️ ${settings.branding?.projectName || guild.name} · Bestellung`,
+      description: 'Du möchtest einen Server bauen lassen? Öffne das Formular. Deine Antworten werden anschließend in einem privaten Bestell-Ticket an unser Team gesendet.' }),
     components: [new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId(BUTTON_ID).setLabel('Bestellung starten').setStyle(ButtonStyle.Primary)
     )],
@@ -89,7 +87,7 @@ async function handleOrderInteraction(interaction, allowedGuildId) {
   }
 
   if (interaction.isModalSubmit() && interaction.customId === MODAL_ID) {
-    const config = (await getGuildSettings(interaction.guildId)).orders;
+    const allSettings = await getGuildSettings(interaction.guildId), config = allSettings.orders;
     if (!config?.enabled || !config.teamRoleId) {
       await interaction.reply({ content: 'Das Bestellsystem ist nicht mehr eingerichtet.', ephemeral: true });
       return true;
@@ -125,15 +123,11 @@ async function handleOrderInteraction(interaction, allowedGuildId) {
       topic: TOPIC_PREFIX + interaction.user.id + ':open',
       permissionOverwrites: overwrites
     });
-    const embed = new EmbedBuilder()
-      .setColor(0x5865f2)
-      .setTitle('Neue Novora-Bestellung')
-      .setDescription('Anfragende Person: <@' + interaction.user.id + '>')
-      .addFields(...answers.map(([name, value]) => ({ name, value: String(value).slice(0, 1000), inline: false })))
-      .setTimestamp();
     await channel.send({
       content: '<@' + interaction.user.id + '> <@&' + config.teamRoleId + '>',
-      embeds: [embed],
+      embeds: panel(interaction.guild, allSettings, { title: '🛠️ Neue Bestellung',
+        description: 'Anfragende Person: <@' + interaction.user.id + '>',
+        fields: answers.map(([name, value]) => ({ name, value: String(value).slice(0, 1000), inline: false })) }),
       components: [makeOrderControls()],
       allowedMentions: { users: [interaction.user.id], roles: [config.teamRoleId] }
     });

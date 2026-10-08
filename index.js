@@ -10,6 +10,9 @@ const { logger } = require('./src/utils/logger');
 async function registerSlashCommands(token) {
   const clientId = requireEnv('CLIENT_ID');
   const guildId = process.env.GUILD_ID?.trim();
+  if (guildId && !/^\d{17,20}$/.test(guildId)) {
+    throw new Error('GUILD_ID muss eine gültige Discord-Server-ID mit 17–20 Ziffern sein. Entferne sie für globale Commands oder korrigiere sie in BotHosting.');
+  }
 
   const commandsPath = path.join(process.cwd(), 'src', 'commands');
   const commandFiles = await collectCommandFiles(commandsPath);
@@ -21,8 +24,11 @@ async function registerSlashCommands(token) {
   }
 
   const rest = new REST({ version: '10' }).setToken(token);
-  await rest.put(guildId ? Routes.applicationGuildCommands(clientId, guildId) : Routes.applicationCommands(clientId), { body: commands });
-  logger.info(`${commands.length} Slash Commands automatisch ${guildId ? 'für Testserver' : 'global'} registriert.`);
+  const registered = await rest.put(guildId ? Routes.applicationGuildCommands(clientId, guildId) : Routes.applicationCommands(clientId), { body: commands });
+  if (!Array.isArray(registered) || registered.length !== commands.length) {
+    throw new Error(`Discord hat ${Array.isArray(registered) ? registered.length : 0} von ${commands.length} Slash Commands bestätigt.`);
+  }
+  logger.info(`${registered.length} Slash Commands bei Discord ${guildId ? `für Server ${guildId}` : 'global'} registriert.`);
 }
 
 async function main() {
