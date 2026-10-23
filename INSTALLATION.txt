@@ -1,0 +1,34 @@
+NOVORA VERIFY V4.17.5 – INSTALLATION BOTHosting.net
+
+1) Bot stoppen. `.env` und `data/` separat sichern und beibehalten.
+2) ZIP direkt in `/home/container/` entpacken und Programmdateien ersetzen.
+3) Node.js >=22.12 wählen; fehlende Pakete ggf. mit npm install --omit=dev installieren.
+4) Bot mit node index.js starten (alte `.env` behalten).
+5) In Discord /setup → Alle Panels aktualisieren auswählen.
+6) Für Team-Bewerbungen DMs aktivieren; Bewerbungs-Panel → Server-Team → Bewerbung starten.
+7) Dateien mit Discords + Symbol IM privaten Ticketkanal senden; nicht im Öffnungsformular.
+
+Der Bot muss weiterhin mit gültigem Discord-Token betrieben werden. Für Join-/Leave-Meldungen ist der Discord-Server Members Intent und ENABLE_MEMBER_EVENTS=true nötig. Kein unsigniertes Auto-Update veröffentlicht. Online-Transkript-Anhänge werden nur bei erfolgreicher Sicherung gelöscht; Beleggröße max. 25MB/Datei bzw. 120MB/Ticket.
+
+V4.8: Transkriptlinks nicht öffentlich teilen. Wiederholte Archivierungen können zusätzliche Sicherungssnapshots in data/ hinterlassen.
+
+V4.9: Voice-Support benötigt Connect/Speak im Warteraum. Kurzzeitige Audio-Fehler werden nach 30 Sekunden erneut versucht; Audio-Dateien bleiben lokal.
+
+V4.10: Alte Text-/Button-Panels ohne V2-Flag werden migriert. Falls /setup bei der Panel-Aktualisierung eine mögliche Doppelung meldet, Kanal manuell prüfen. Nur Team-Bewerbungen werden angeboten.
+
+V4.11: Speichervorgänge schreiben über exklusive, private temporäre Dateien und ersetzen data/state.json atomar. Die vorhandene data/state.json wird nicht im ZIP mitgeliefert. Vorher immer das komplette data/ einschließlich encryption.key sichern. Die vollständige Live-Prüfung steht in LIVE-TEST-CHECKLIST-V4.11.md.
+
+V4.17.3: Update-Sicherungen liegen in data/update-backups/. Vor Dateiersetzung
+wird data/update-recovery.json geschrieben. Bei offener Wiederherstellung
+startet der Bot absichtlich NICHT automatisch. Siehe
+SICHERHEITSUPDATE-V4.17.3.txt. data/ muss persistent sein und extern gesichert
+werden. Diese ZIP ist ein MANUELLES Update, kein signiertes OTA-Release.
+
+
+V4.17.5: Sicherungen werden vor automatischem Rollback vollständig auf
+SHA-256, Größe und Symlinks geprüft. Wiederherstellung einzelner Dateien ist
+atomar. Wartende Voice-Fälle werden im Dashboard tatsächlich geschlossen.
+Falls data/update-recovery.json existiert: NICHT löschen, sondern bei
+angehaltenem Bot zuerst `node scripts/recover-update.js` zur Prüfung ausführen.
+Der manuelle Installationsschritt ist notwendig, da src/updater.js bewusst
+nicht per signiertem OTA aktualisiert werden darf. Kein BotHosting-Livetest.

@@ -1,0 +1,87 @@
+NOVORA VERIFY V4.10 — PANEL-KOMPATIBILITÄT & SETUP (23.10.2026)
+- Components-V2-Flag korrekt erkannt; alte Text-/Button-Panels ohne Embeds sicher migriert.
+- Unbekannte Bot-Identität verhindert die Bearbeitung gespeicherter Panels.
+- Fehlende Nachrichten-ID einer neuen Ersatznachricht führt nicht zur Löschung des alten Panels.
+- Fehlgeschlagene Ersatzpanel-Rücknahme wird als möglicher Doppelungsfall gemeldet.
+- Setup-Bezeichnungen zeigen konsequent nur Team-Bewerbungen.
+- Elf neue Regressionstests; alle bisherigen Systeme bleiben enthalten.
+- Kein unsigniertes OTA-Release veröffentlicht.
+
+---
+
+NOVORA VERIFY V4.9 — VOICE & BEGRÜSSUNG STABILISIERT (23.10.2026)
+- Doppelte Voice-Verbindungen bei gleichzeitigen Beitritten verhindert.
+- Abgebrochene Beitritte bei leerem Warteraum und Shutdown werden sauber beendet.
+- Transiente Voice-Fehler können nach einer Pause erneut versucht werden.
+- Fehler im Audio-Player und verspätete Ereignisse gefährden keine neueren Sitzungen.
+- Voice-Dateien werden atomar veröffentlicht, unvollständige Dateien bereinigt.
+- Join-/Leave-Einstellungen werden bei Speicherfehler zurückgesetzt.
+- Zwölf neue Regressionstests.
+
+NOVORA VERIFY V4.8 — SICHERE TRANSKRIPTE & DATEIANHÄNGE (23.10.2026)
+
+• Archivierungsversuche erzeugen eigene unveränderliche JSON-Dateien.
+• Fehlgeschlagene Wiederholungen können ältere archivierte Ticketdaten nicht mehr überschreiben.
+• Der Transkript-Index wird bei Fehlern im Arbeitsspeicher zurückgesetzt; unsicherer Commit löscht keine möglicherweise bereits referenzierten Dateien.
+• Dateianhänge werden nicht über symbolische Links ausgeliefert (lstat + O_NOFOLLOW).
+• Fremde Ticket-Tokens können nicht für andere Tickets übernommen werden.
+• Sechs zusätzliche Tests; kein unsigniertes OTA-Release veröffentlicht.
+
+---
+
+NOVORA VERIFY V4.7 — FEHLERFESTE TICKETS & ANTRÄGE (23.10.2026)
+
+• Bereits gespeicherte Supporttickets bleiben bestehen, wenn die Panel-Aktualisierung fehlschlägt.
+• Fehlgeschlagene Ticket- und Antragsspeicherung hinterlässt keine offenen Phantom-Datensätze.
+• Team-Bewerbungen können nach einem Neustart ohne doppelte Ticket-Erstellung bestätigt werden.
+• Fraktionsfreigaben verwenden bereits gespeicherte Forumthreads bei einem erneuten Versuch.
+• Entscheidungen bleiben nach erfolgreichem Speichern auch bei fehlender Antragskarte gültig.
+• Support-Fehlerbehandlung repariert (ReferenceError bei fehlgeschlagenen Modals).
+• Sechs neue Regressionstests; kein unsigniertes OTA-Release.
+
+---
+
+NOVORA VERIFY V4.6 — ZUVERLÄSSIGE PANEL-SYNCHRONISIERUNG (23.10.2026)
+
+• Vor jeder Änderung wird die Urheberschaft gespeicherter Discord-Panels geprüft.
+• Alte Embed-Panels erst löschen, wenn die neue Panel-ID erfolgreich gespeichert wurde.
+• Rollback bei fehlgeschlagener Speicherung oder Discord-Löschung mit Schutz gegen verwaiste Panels.
+• Migration ohne Speicherfunktion sicher verweigern.
+• Doppelte V4.4-Anzeige im Updateverlauf bereinigt.
+• Sieben neue Regressionstests; vorhandene Systeme bleiben erhalten.
+
+---
+
+NOVORA VERIFY V4.5 — SICHERER AUTO-UPDATER (23.10.2026)
+
+• Signatur und Datei-Hashes unmittelbar vor dem Einspielen erneut prüfen.
+• Nach dem Download manipulierte Staging-Dateien sicher ablehnen.
+• Symbolische Links in Update-Quell- und Zielpfaden blockieren.
+• Zufällige exklusive temporäre Dateien statt vorhersagbarer .novora-new-Dateien.
+• Vier neue Regressionstests für diese Sicherheitsgrenzen.
+• Keine Datenmigration; .env und data/ bleiben unangetastet.
+• Kein unsigniertes OTA-Release veröffentlicht.
+
+---
+
+NOVORA VERIFY V4.4 — TICKETS, PARTNERSCHAFTEN & DM-BEWERBUNG (22.10.2026)
+
+• Fünf Supportkategorien mit jeweils genau zwei passenden Pflichtfragen.
+• Private Nachweis-Uploads im Discord-Ticketkanal, Button mit Hilfetext.
+• Vollständige Anhangssicherung in data/ vor einer zulässigen Kanallöschung.
+• Token-geschützter Download archivierter Dateien im Online-Transkript.
+• Bewerbungs-Panel nur noch mit „Server-Team“.
+• Bewerbung per Discord-DM mit „Bewerbung starten“, Frage für Frage, Abbruch/Resume und persistenten Antworten.
+• Neue Partnerschaft: vier Fragen; Änderung: vier mit optionalen Werten; Kündigung: nur zwei Fragen.
+• Partner-Ticketkarten verbessert; Abschluss und Bewertung mit Components V2.
+• Erhalt aller älteren gespeicherten Tickets, Einstellungen, Voice-, OAuth2-, Panel- und Sicherheitsfunktionen.
+• Signierter Ed25519-Updater bleibt erhalten; kein unsigniertes Release veröffentlicht.
+
+Die Historie früherer Versionen steht im Update-Center und in den bisherigen CHANGELOG-Dateien.
+
+V4.11.0 – 23.10.2026 – Abschlussrunde, Datenpersistenz und Live-Testmatrix
+- data/state.json wird atomar über zufällige exklusive private temporäre Dateien statt einem festen .tmp-Pfad gespeichert.
+- Datei vor Commit synchronisiert, Verzeichnis-Fsync soweit unterstützt, temporäre Dateien nach Fehlern bereinigt.
+- Sechs neue Regressionstests: Symlink, alte Tempdatei, parallele Speicherung, Fehler/Rollback, Restart, Dateirechte.
+- Praktische Discord-/BotHosting-Livetest-Checkliste und vollständiger QA-Bericht ergänzt.
+- Kein automatisches unsigniertes Release und keine Änderung an vorhandenen .env-/data/-Dateien.

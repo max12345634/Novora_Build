@@ -1,0 +1,7 @@
+Novora Verify V4.12 – lokale Qualitätssicherung
+Basis: NovoraVerify_V4.11_PREMIUM_VOLLVERSION.zip
+Änderungen: einzigartige temporäre WAV-Dateien bei paralleler TTS-Erzeugung; Cacheprüfung vor Wiederverwendung; ein neuer Regressionstest.
+Automatisierte Tests: 231 insgesamt, 230 bestanden, 0 fehlgeschlagen, 1 übersprungen.
+JavaScript-Prüfung: npm run check erfolgreich.
+Hinweis: Keine BotHosting- oder Discord-Livetests. Keine neue natürliche Neural-TTS-Stimme eingebaut; espeak bleibt Fallback.
+.env und data/ gehören nicht ins ZIP. Keine automatische Veröffentlichung.

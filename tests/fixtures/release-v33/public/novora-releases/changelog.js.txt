@@ -1,0 +1,37 @@
+'use strict';
+const fs=require('node:fs');
+const path=require('node:path');
+const BUILTIN=[
+ {version:'3.3.0',date:'2026-10-22',title:'Owner Alerts & Dashboard',changes:[
+  'Private Owner-Benachrichtigungen mit Ein- und Ausschalten pro Discord-Server',
+  'Mute-Schalter für kritische Warnungen, Rollen, Moderation und Systemmeldungen',
+  'Direkte Rollenänderungen ohne zusätzliche Discord-DM-Bestätigung; Sicherheitsprüfungen bleiben aktiv',
+  'Geschützte Rollen bleiben gesperrt; Aktionen werden im Discord-Audit-Log nachvollziehbar gemacht',
+  'Mobile Rollenverwaltung mit Suche und zugewiesenen Rollen',
+  'Neuer Updateverlauf mit Benachrichtigungssymbol im Dashboard',
+  'Privater Testalarm und Statusabfrage in Discord',
+  'Anzeigestatus für stummgeschaltete Benachrichtigungen',
+  'Manuelle Aktualisierung der Mitgliedsrollen nach Änderung',
+  'Öffentliche Update-Metadaten enthalten keine geheimen Zugangsdaten']},
+ {version:'3.2.0',date:'2026-10-22',title:'Security Edition',changes:['Manipulationsprüfbares Sicherheitsjournal','Rollen- und Berechtigungslogs','Warnungen für Administratorrechte','OAuth2 und Transferverbesserungen','Flache Sicherheits-Emojis']},
+ {version:'3.1.0',date:'2026-10-22',title:'Auto-Update',changes:['Signierter Bot-Updater','Automatische Updateprüfung','Rollback bei Startfehler','Dateisicherung ohne Überschreiben von .env und data/']},
+ {version:'3.0.0',date:'2026-10-22',title:'Discord OAuth & Dashboard',changes:['Discord-OAuth2-Verifizierung','Server-Branding','Live-Nachrichtenansicht','Verifizierungszähler','Neues Verify-Panel']},
+ {version:'2.0.0',date:'2026-10-22',title:'Control Center',changes:['Panel-Designer','Live-Einstellungen','Bot-Status','Verifizierung pausieren']},
+ {version:'1.7.0',date:'2026-10-22',title:'Rollenverwaltung',changes:['Serverbezogene Rollenansicht','Administrator-Freigabecode','Rollenänderungen aus dem Dashboard']}
+];
+function history(dataDir){
+ let installed=[];
+ try{
+  const x=JSON.parse(fs.readFileSync(path.join(dataDir,'update-history.json'),'utf8'));
+  if(Array.isArray(x)) installed=x.slice(-50).map(v=>({version:String(v.version||''),date:new Date(v.time||Date.now()).toISOString().slice(0,10),title:'Automatisch installiert',changes:[String(v.from||'')+' → '+String(v.version||'')]}));
+ }catch{}
+ // Older auto-update supervisors track last successful install in update-status.json.
+ // Present it even before their own code can be manually upgraded.
+ try { const status=JSON.parse(fs.readFileSync(path.join(dataDir,'update-status.json'),'utf8'));
+   const candidate=String(status.currentVersion||'');
+   if(status.lastInstalled&&/^\d+\.\d+\.\d+$/.test(candidate)&&!installed.some(x=>x.version===candidate))
+     installed.push({version:candidate,date:new Date(status.lastInstalled).toISOString().slice(0,10),title:'Automatisch installiert',changes:['Signiertes Bot-Update']});
+ }catch{}
+ return {version:'3.3.0',releases:BUILTIN,installed:installed.reverse()};
+}
+module.exports={history,BUILTIN};

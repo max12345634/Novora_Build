@@ -1,0 +1,11 @@
+'use strict';
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const {findCase}=require('../src/dashboard-cases');
+const data={tickets:[{id:'t_12',status:'open'}],voice:[{id:'v_33',status:'closed'}]};
+test('Ticket anhand der exakten ID finden',()=>assert.equal(findCase(data,'ticket','t_12').case.status,'open'));
+test('Voice-Fall anhand der exakten ID finden',()=>assert.equal(findCase(data,'voice','v_33').case.status,'closed'));
+test('Fehlende Fall-ID liefert keine fremden Daten',()=>assert.deepEqual(findCase(data,'ticket','unknown'),{ok:false,found:false}));
+test('Ungültige Falltypen abweisen',()=>assert.throws(()=>findCase(data,'other','t_12')));
+test('Unsichere und überlange IDs abweisen',()=>{assert.throws(()=>findCase(data,'ticket','../../data'));assert.throws(()=>findCase(data,'ticket','x'.repeat(81)));});
+test('Fehlerhafte Snapshots abweisen',()=>assert.throws(()=>findCase({},'ticket','t_12')));

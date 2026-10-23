@@ -1,0 +1,78 @@
+'use strict';
+// Einmal installieren; danach aktualisiert der Supervisor den Discord-Prozess selbständig.
+require('dotenv').config();
+const fs=require('node:fs');
+const path=require('node:path');
+const {fork}=require('node:child_process');
+const {checkRelease,backupAndInstall,saveStatus}=require('./updater');
+const {compareVersions}=require('./version');
+function start({root=path.resolve(__dirname,'..'),interval=10*60*1000,launch}={}){
+  const auto=process.env.NOVORA_AUTO_UPDATE!=='false';
+  let child=null,busy=false,stopping=false,ready=false,restarts=0,lastStart=0;
+  function getVersion(){delete require.cache[require.resolve('./control')];delete require.cache[require.resolve('./version-label')];return require('./control').VERSION;}
+  function spawn(){
+    if(stopping)return;
+    ready=false;lastStart=Date.now();
+    child=launch?launch():fork(path.join(root,'src/bot-main.js'),[],{cwd:root,env:process.env,stdio:['inherit','inherit','inherit','ipc']});
+    child.on('message',m=>{if(m&&m.kind==='novora-ready'){ready=true;restarts=0;console.log('Novora Worker: bereit ('+getVersion()+')');}});
+    child.once('exit',(code,signal)=>{
+      child=null;ready=false;
+      if(!stopping&&!busy){restarts++;const delay=Math.min(30000,Math.max(2000,restarts*4000));console.error('Bot-Prozess beendet ('+code+'/'+signal+'); Neustart in '+delay/1000+'s');setTimeout(spawn,delay)}
+    });
+  }
+  async function stopWorker(){
+    if(!child)return;
+    const old=child;
+    await new Promise(resolve=>{
+      let done=false;const finish=()=>{if(!done){done=true;resolve()}};
+      old.once('exit',finish);old.kill('SIGTERM');
+      const t=setTimeout(()=>{if(old.exitCode===null)old.kill('SIGKILL');finish()},7000);t.unref?.();
+    });
+    if(child===old)child=null;
+  }
+  async function waitReady(timeout=35000){
+    const end=Date.now()+timeout;
+    while(Date.now()<end){if(ready)return true;if(!child)return false;await new Promise(r=>setTimeout(r,500))}return false;
+  }
+  async function poll(){
+    if(!auto||busy||stopping||!ready)return false;
+    busy=true;
+    const current=getVersion();
+    saveStatus(root,{enabled:true,currentVersion:current,lastCheck:Date.now(),checking:true,error:null});
+    let release=null,receipt=null;
+    try{
+      release=await checkRelease(root,current);
+      if(!release){saveStatus(root,{checking:false,currentVersion:current});return false}
+      console.log('Novora Auto-Update: neue Version '+release.manifest.version+' gefunden, geprüft und heruntergeladen.');
+      await stopWorker();
+      receipt=backupAndInstall(root,release);
+      spawn();
+      if(!(await waitReady()))throw Error('Neuer Bot-Prozess ist nicht bereit geworden');
+      receipt.finish();receipt=null;
+      try {
+        const historyFile=path.join(root,'data','update-history.json');
+        let previous=[];
+        try{previous=JSON.parse(fs.readFileSync(historyFile,'utf8'));if(!Array.isArray(previous))previous=[]}catch{}
+        previous.push({version:release.manifest.version,from:current,time:Date.now()});
+        fs.writeFileSync(historyFile,JSON.stringify(previous.slice(-100),null,2),{mode:0o600});
+      }catch(e){console.warn('Update-Verlauf konnte nicht geschrieben werden:',e.message)}
+      saveStatus(root,{checking:false,currentVersion:release.manifest.version,lastInstalled:Date.now(),error:null});
+      console.log('Novora Auto-Update erfolgreich: '+current+' → '+release.manifest.version);
+      return true;
+    }catch(err){
+      console.error('Novora Auto-Update fehlgeschlagen:',err.message);
+      if(receipt){await stopWorker();receipt.rollback();receipt=null;spawn();await waitReady();}
+      else if(!child&&!stopping)spawn();
+      saveStatus(root,{checking:false,error:String(err.message).slice(0,220),lastFailure:Date.now(),currentVersion:getVersion()});
+      return false;
+    }finally{if(release?.dir)fs.rmSync(release.dir,{recursive:true,force:true});busy=false;}
+  }
+  spawn();
+  saveStatus(root,{enabled:auto,currentVersion:getVersion(),checking:false});
+  const timer=setInterval(()=>{void poll()},Math.max(60000,interval));timer.unref?.();
+  setTimeout(()=>{void poll()},16000).unref?.();
+  function shutdown(){stopping=true;clearInterval(timer);if(child)child.kill('SIGTERM');}
+  process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);
+  return {poll,shutdown,isReady:()=>ready};
+}
+module.exports={start};

@@ -1,0 +1,17 @@
+NOVORA VERIFY V4.17.4 – OFFLINE-RECOVERY-ASSISTENT
+23.10.2026
+
+Neu: Schema-2-Wiederherstellungsjournal mit SHA-256 und Dateigröße der alten
+Originaldateien, Read-only-Vorschau und bewusst bestätigte Wiederherstellung.
+Keine automatischen Reparaturen bei unbekanntem oder manipuliertem Journal.
+
+Bot stoppen, dann:
+  node scripts/recover-update.js
+  node scripts/recover-update.js --apply --i-stopped-bot
+
+Die bestehende Ed25519-Vertrauenskette, Download-Hashes und der normale
+Rollback sind unverändert. Keine Veröffentlichung eines signierten Releases,
+kein Zugriff auf BotHosting, kein Discord-Livetest.
+
+WICHTIG: V4.17.3-Journale (Schema 1) können mangels gesicherter Hashes nicht
+automatisch mit diesem Assistenten repariert werden. Externe Sicherung nutzen.

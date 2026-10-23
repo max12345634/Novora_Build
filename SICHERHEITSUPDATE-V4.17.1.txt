@@ -1,0 +1,21 @@
+NOVORA VERIFY V4.17.1 – SICHERHEITSNACHBESSERUNG
+23. Oktober 2026
+
+ÄNDERUNGEN:
+- Wenn ein automatischer Rollback fehlschlägt, wird der Fehler nicht mehr verschluckt.
+- Die letzte Wiederherstellungssicherung wird bei einem Rollbackfehler NICHT gelöscht.
+- Der Supervisor startet nach einem unvollständigen Rollback keinen möglicherweise beschädigten Bot.
+- update-status.json enthält dann manualRecoveryRequired=true; der geschützte Dashboard-Status zeigt eine Warnung.
+- Das AppDeploy Control Center zeigt den vom Bot gemeldeten Auto-Update-Status lesend an.
+
+WEITERHIN NICHT AUTOMATISCH INSTALLIERT:
+- Für die erste Installation dieser geänderten src/updater.js und src/supervisor.js ist eine manuelle Installation nötig, da der signierte Updater seine eigenen Trust-Root-Dateien bewusst nicht überschreibt.
+- Für ein produktives Release wird weiterhin der bisherige passende private Ed25519-Signierschlüssel benötigt.
+- Kein Release wurde veröffentlicht, kein BotHosting-Konto geändert.
+
+INSTALLATION:
+- Auf BotHosting vorhandene .env und data/ unbedingt sichern und beibehalten.
+- ZIP-Dateien über bestehende Bot-Dateien kopieren, ohne data/ oder .env zu löschen.
+- Bot neu starten und Logs prüfen. Nicht blind in einen laufenden Bot hineinkopieren.
+
+TESTS: Node.js 22; node --test tests/*.test.js: 264 bestanden, 1 übersprungen, 0 fehlgeschlagen.

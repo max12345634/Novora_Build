@@ -1,0 +1,28 @@
+NOVORA VERIFY V4.17.5 – ENDSPURT / SICHERHEITSUPDATE
+Datum: 23. Oktober 2026
+
+ÄNDERUNGEN
+1. Automatischer Rollback: prüft vor Änderungen ALLE Backups auf reguläre
+   Dateien, Größe, SHA-256 und sichere Pfade; bei Abweichung Abbruch.
+2. Rollback-Dateien: exklusive temporäre Kopie + erneute Hashprüfung +
+   atomare Umbenennung statt direktes Überschreiben von Programmdateien.
+3. Voice-Fallverwaltung: Wartende Voice-Fälle werden jetzt tatsächlich
+   geschlossen, gespeichert und mit Team-Admin im Audit protokolliert.
+4. Fallaktionen: Bereits geschlossene und in Bearbeitung befindliche Voice-
+   Fälle melden keinen falschen Erfolg.
+5. Control Center: Server prüft nun den vom Bot bestätigten Fallstatus.
+
+SICHERHEIT
+- Ed25519-Vertrauenskette unverändert, keine neuen Schlüssel erzeugt.
+- SHA-256, Backup/Recovery-Journal, Start-Sperre und Rollback bleiben aktiv.
+- .env, data/, OAuth-Tokens und private Schlüssel NICHT in der ZIP.
+- Kein unsigniertes Release veröffentlicht und kein BotHosting-Zugriff erfolgt.
+- Das Paket MUSS für Updater-Änderungen einmalig manuell installiert werden.
+
+OFFENE RISIKEN
+- Kein Live-Ende-zu-Ende-Test mit Discord und BotHosting.
+- Datenordner muss beim Hoster tatsächlich persistent sein.
+- Website-PIN ist noch fest im Backend codiert; für Ablösung ist ein neues
+  AppDeploy-Secret erforderlich.
+- Veröffentlichung des signierten Release-Feeds benötigt den passenden
+  privaten Ed25519-Schlüssel, der hier nicht verfügbar ist.

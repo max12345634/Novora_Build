@@ -1,0 +1,6 @@
+Novora Verify 4.17.0
+- /update-verbinden erzeugt den vorhandenen, eigentümergeschützten einmaligen Website-Verbindungscode.
+- Fall-ID-Suche prüft den Discord-Administrator und durchsucht alle gespeicherten Tickets/Voice-Fälle statt nur die letzten 100.
+- Unveränderte Ed25519-Prüfung, HTTPS-Host-Pinning, SHA256, Staging und Rollback.
+- Bestehende Daten und .env nicht im ZIP enthalten.
+WICHTIG: Auto-Update benötigt ein gültig signiertes Release auf dem gepinnten Website-Host. Dieses ZIP ist KEIN signiertes Release.

@@ -1,0 +1,1 @@
+V3.3 signierter Update-Feed. Dateien unter public/novora-releases/ der bestehenden AppDeploy-Website veröffentlichen. Ohne erfolgreiche Veröffentlichung kann kein Bot das Update automatisch laden. Signierte Dateien nicht verändern. Keine privaten Schlüssel enthalten.

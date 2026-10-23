@@ -1,0 +1,6 @@
+Novora Verify V4.13 – lokale Qualitätsprüfung
+Basis: V4.12 Premium Vollversion
+Neue Funktionen: RP-Start/Ende/Status, RP-Dienstanmeldung, RP-Meldungen mit Admin-Einsicht.
+Persistenz: RP-Start/Ende/Dienst/Meldung mit Rollback bei Schreibfehler.
+Berechtigung: RP-Start und Ende sowie Meldungseinsicht benötigen Server verwalten.
+Grenzen: Keine Discord/BotHosting-Livetests; keine automatische Veröffentlichung; Meldungstexte in data/state.json, Backup und Zugriff schützen.

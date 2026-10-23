@@ -1,0 +1,26 @@
+NOVORA VERIFY V4.5.0 — LOKALER QUALITÄTS- UND SICHERHEITSBERICHT
+Datum: 23.10.2026 (Nachtlauf 01:00, Europe/Berlin)
+
+Basis: NovoraVerify_V4.4_PREMIUM_VOLLVERSION.zip
+Änderungsschwerpunkt: Sicherheit des signierten Auto-Updaters
+
+UMGESETZT
+- Signiertes Release-Manifest wird unmittelbar vor backupAndInstall() erneut mit dem fest eingebauten Ed25519-Public-Key geprüft.
+- Jede Staging-Datei wird vor der Installation nochmals auf Dateigröße, SHA-256 und Dateiformat geprüft; JavaScript zusätzlich auf Syntax.
+- Symlinks in Staging- und Zielpfaden werden abgewiesen, um lokale Pfadumleitungen zu verhindern.
+- Einzigartige, exklusiv angelegte Installations-Temporärdateien statt vorhersehbarem .novora-new-Pfad.
+- Prüfsumme der exklusiv kopierten Datei wird vor dem atomaren Umbenennen erneut validiert.
+- Rollback-Mechanismus und Schutz bestehender .env-/data/-Dateien beibehalten.
+- Vier zusätzliche Regressionstests: verändertes Staging, Symlink-Zielverzeichnis, Symlink-Quelle, altes Temp-Datei-Sentinel.
+
+LOKALE AUTOMATISIERTE PRÜFUNG
+Befehl: npm run check && npm test
+Gesamt: 182 Tests, 181 bestanden, 0 fehlgeschlagen, 1 übersprungen.
+Die Baseline V4.4 hatte 178 Tests, 177 bestanden, 0 fehlgeschlagen, 1 übersprungen.
+
+GRENZEN
+Keine echte Discord- oder BotHosting-Instanz gestartet. Keine externen Signierprivatschlüssel vorhanden.
+Kein signiertes OTA-Manifest erzeugt oder veröffentlicht. Die ZIP ist für manuelle Installation.
+Keine Zusage, dass ungetestete Hosting-/Berechtigungsbedingungen funktionieren.
+Die Prüfung von Dateisystem-Symlinks ist ein Schutz gegen typische lokale Fehlkonfigurationen,
+keine vollständige Garantie gegen gleichzeitig manipulierende privilegierte Prozesse.

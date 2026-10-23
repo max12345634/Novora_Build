@@ -1,0 +1,7 @@
+NOVORA VERIFY V4.11 – 07:00 ABSCHLUSSVERSION
+
+1. Zuerst QA-REPORT-V4.11.txt lesen.
+2. Vor dem Update: .env und den ganzen Ordner data/ sichern.
+3. INSTALLATION.txt folgen; kein Auto-Deploy/OTA-Update.
+4. Nach Start die LIVE-TEST-CHECKLIST-V4.11.md durchgehen.
+5. Kein Discord-/BotHosting-Livetest wurde durchgeführt.

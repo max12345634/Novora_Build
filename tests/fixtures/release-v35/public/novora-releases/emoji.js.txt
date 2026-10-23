@@ -1,0 +1,43 @@
+'use strict';
+const fs=require('node:fs');
+const path=require('node:path');
+const embedded=require('./log-emoji-assets');
+const partnerArt=require('./partner-art');
+const names=['nv_verify','nv_key','nv_badge','nv_saturn','nv_audit','nv_alert','nv_role','nv_lock','nv_partner','nv_partner_edit','nv_partner_end'];
+// Upload the flat v3 set under new names; leave old style emojis untouched.
+async function uploadEmoji(client,store){
+  const appId=process.env.DISCORD_CLIENT_ID;
+  const previous=store.state.appEmojis||{};
+  if(store.state.emojiStyleVersion==='flat-v34'&&names.every(n=>previous[n]))return previous;
+  const auth={Authorization:'Bot '+process.env.DISCORD_TOKEN};
+  const url='https://discord.com/api/v10/applications/'+appId+'/emojis';
+  const listed=await fetch(url,{headers:auth,signal:AbortSignal.timeout(14000)});
+  if(!listed.ok)throw Error('Discord Application-Emojis konnten nicht aufgelistet werden: HTTP '+listed.status);
+  const available=await listed.json();
+  const existing=new Map((available.items||[]).map(item=>[item.name,item.id]));
+  const saved={...previous};
+  for(const name of names){
+    const remoteName=name+'_flat';
+    if(existing.has(remoteName)){
+      saved[name]=String(existing.get(remoteName));
+    }else{
+      const file=path.join(__dirname,'..','assets','emojis',name+'.png');
+      const png=fs.existsSync(file)?fs.readFileSync(file):(embedded[name]?Buffer.from(embedded[name],'base64'):(partnerArt['emojis/'+name+'.png']?Buffer.from(partnerArt['emojis/'+name+'.png'],'base64'):null));
+      if(!png)throw Error('Emoji-Datei fehlt: '+name);
+      if(png.length>256*1024)throw Error('Emoji ist zu groß: '+name);
+      const payload={name:remoteName,image:'data:image/png;base64,'+png.toString('base64')};
+      const response=await fetch(url,{method:'POST',headers:{...auth,'Content-Type':'application/json'},
+        body:JSON.stringify(payload),signal:AbortSignal.timeout(14000)});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok)throw Error('Discord-Emoji '+remoteName+': HTTP '+response.status+' '+String(data.message||''));
+      saved[name]=String(data.id);
+    }
+    // Save each confirmed emoji, so network interruptions never lose the ID.
+    store.state.appEmojis={...saved};
+    await store.persist();
+  }
+  store.state.emojiStyleVersion='flat-v34';
+  await store.persist();
+  return saved;
+}
+module.exports={uploadEmoji};

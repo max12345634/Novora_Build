@@ -1,0 +1,36 @@
+NOVORA VERIFY V4.17 – RELEASE-SICHERHEIT
+23. Oktober 2026
+
+NEU: scripts/verify-release-output.js prüft eine vorbereitete Release-Ausgabe
+vor der Veröffentlichung gegen den im Bot fest eingebauten Ed25519-Public-Key.
+Er überprüft die Manifest-Signatur, alle SHA-256-Hashes, Dateigrößen,
+PNG/OGG-Dateiformate, JavaScript-Syntax und lehnt symbolische Links ab.
+
+NEU: scripts/build-signed-release.js verweigert die Veröffentlichung,
+wenn die gewünschte Release-Version nicht exakt mit package.json und
+src/version-label.js übereinstimmt. Damit wird eine Update-Endlosschleife
+aufgrund eines falschen Versionslabels verhindert.
+
+ABLAUF FÜR EIN SPÄTERES SIGNIERTES RELEASE:
+1. package.json und src/version-label.js auf die neue Version setzen.
+2. Den privaten Ed25519-Schlüssel sicher außerhalb des Botverzeichnisses
+   aufbewahren. Niemals in die ZIP oder auf die Website kopieren.
+3. NOVORA_SIGNING_KEY_FILE=/sicherer/pfad/key.pem \
+   node scripts/build-signed-release.js 4.18.0 /tmp/novora-release
+4. node scripts/verify-release-output.js /tmp/novora-release
+5. Erst nach erfolgreicher Prüfung alle Dateien des Ordners
+   novora-releases/ auf der gepinnten Website bereitstellen.
+   latest.json muss ZULETZT veröffentlicht werden.
+6. Mit laufendem Bot und echten Berechtigungen den vollständigen
+   Update-/Rollback-Prozess auf BotHosting testen.
+
+SICHERHEITSGRENZE:
+Ohne den bisherigen privaten Schlüssel kann kein neues Release für den
+aktuell gepinnten öffentlichen Schlüssel signiert werden. Es wurde kein
+neuer Schlüssel erzeugt oder ein unsigniertes Release veröffentlicht.
+Die ZIP ist ein manuell installierbares Botpaket, kein signiertes Release.
+
+TESTS: npm run check und npm test – 262 bestanden, 1 übersprungen, 0 fehlgeschlagen.
+Die beiden AppDeploy-Websites waren zum Prüfzeitpunkt online; die ältere
+Website verweist auf das Control Center. BotHosting selbst wurde nicht live
+aktualisiert oder getestet.

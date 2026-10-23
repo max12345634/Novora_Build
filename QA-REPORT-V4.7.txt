@@ -1,0 +1,30 @@
+NOVORA VERIFY V4.7.0 — LOKALER WORKFLOW-QUALITÄTSBERICHT
+Datum: 23.10.2026 (03:00, Europe/Berlin)
+
+BASIS
+NovoraVerify_V4.6_PREMIUM_VOLLVERSION.zip aus der ChatGPT-Dateibibliothek.
+V4.5-Signatur-/Updatehärtung und V4.6-Panel-Synchronisierung beibehalten.
+
+TATSÄCHLICH GEÄNDERT
+1. src/support-suite.js: Nach erfolgreichem Persistieren eines Supporttickets führt ein Fehler beim Aktualisieren des öffentlichen Panels nicht mehr zur Löschung des privaten Ticketkanals.
+2. src/support-suite.js: Bei einem fehlgeschlagenen Ticket-Commit wird der unbestätigte Datensatz aus dem Arbeitsspeicher entfernt; Kanal-Cleanup nur bei unbestätigten Tickets.
+3. src/support-suite.js: Variable `action` außerhalb des try-Blocks definiert; Support-Fehlerantworten werfen nicht mehr `ReferenceError: action is not defined`.
+4. src/community-suite.js: Community-Anträge behalten nach erfolgreichem Commit den privaten Kanal auch bei einem fehlerhaften Audit; bei fehlgeschlagenem Commit wird der unbestätigte Datensatz zurückgenommen.
+5. src/community-suite.js: Bereits eingereichte offene Team-Bewerbung wird bei wiederhergestellter DM-Sitzung erkannt; keine zweite Kanalerstellung.
+6. src/community-suite.js: Fraktionsforum-Thread-ID wird vor finaler Genehmigung separat persistiert; Wiederholung verwendet vorhandenen Thread; widersprüchliche Einstufung oder fehlender gespeicherter Thread wird blockiert.
+7. src/community-suite.js: Fehler beim finalen Status-Commit setzt den Status für erneuten Versuch zurück. Fehlende Antragskarten verhindern keine bereits gespeicherte Entscheidung.
+8. tests/discord-stub.js: URL-Button im Testdouble ergänzt, um den tatsächlichen DM-Abschlussweg abdecken zu können.
+9. Sechs neue gezielte Regressionstests in tests/v47-workflow-atomicity.test.js.
+10. Versionslabel, Changelog, Dokumentation und Paketmetadaten auf V4.7.0 aktualisiert.
+
+LOKALE TESTS
+Befehl: npm run check && npm test
+Vorher V4.6: 189 gesamt, 188 bestanden, 0 fehlgeschlagen, 1 übersprungen.
+Nachher V4.7: 195 gesamt, 194 bestanden, 0 fehlgeschlagen, 1 übersprungen.
+ZIP-Integrität geprüft und Tests nach erneutem Entpacken mit identischem Ergebnis ausgeführt.
+
+EINSCHRÄNKUNGEN
+Keine echte Discord-/BotHosting-Verbindung; alle Interaktionsabläufe lokal simuliert.
+Discord-Forenbeiträge und state.json können nicht atomar als eine Transaktion gespeichert werden. Bei Absturz exakt zwischen Thread-Erstellung und erfolgreichem Speichern der ID ist eine manuelle Doppelungsprüfung erforderlich.
+Kein privater Ed25519-Signierschlüssel vorhanden; kein signiertes OTA-Release veröffentlicht.
+.env und data/ werden weder mitgeliefert noch ersetzt.

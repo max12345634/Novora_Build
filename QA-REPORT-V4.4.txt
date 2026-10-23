@@ -1,0 +1,16 @@
+NOVORA VERIFY V4.4 – TEST- UND SICHERHEITSPROTOKOLL
+Datum: 22.10.2026
+
+Automatisierte lokale Tests (node --test tests/*.test.js):
+  Testfälle gesamt: 178
+  Bestanden:       177
+  Fehlgeschlagen:    0
+  Übersprungen:      1
+
+Prüfbereiche: V4.1–V4.3 Bestandsfunktionen, Ed25519-Update-Validierung, OAuth-Erfolgsseite, Verify-/Panel-Aktionen, Permissions, Partnerschaftsanalyse und Forumlogik, Voice-Audio-Assets, Transkript-Failsafe, neue 2-Fragen-Formulare, DM-Team-Bewerbung mit simuliertem Neustart/Abbruch, private Tickets und Anhänge, sichere CDN-Download-Backups, wiederholte Archivierung, Online-Transkript-Abruf mit Token.
+
+Ein neuer Integrationstest hat den vollständigen Team-Bewerbungsablauf simuliert und genau einen privaten Antrag angelegt. Reale Discord-/Voice-/BotHosting-Livetests sowie tatsächliche Dashboard-Veröffentlichung wurden NICHT durchgeführt.
+
+Sicherheitsgrenzen: Maximal 25 MiB pro Anlage, 120 MiB gesamt und 80 Anhänge; nur HTTPS Discord-CDN als Downloadquelle, keine Weiterleitung. Fehlgeschlagene vollständige Transkriptsicherung verhindert Ticketkanallöschung. Gesicherte Dateien liegen ausschließlich unter data/ mit eingeschränkten Dateirechten und benötigen einen 48-stelligen Token für den Download. Ein erlaubtes Archiv behält .env/data/ unangetastet; keine privaten Schlüssel oder Token enthalten. Kein unsigniertes Manifest veröffentlicht.
+
+Bekannte externe Voraussetzungen: Node.js >=22.12, intakte Discord-Bot-Konfiguration, Discord-DMs beim Bewerber, AttachFiles-Rechte im Ticketkanal, bestehende Discord-Rollen/Kanäle, BotHosting-Schreibzugriff auf data/, Voice- und Member-Intents ggf. ausdrücklich aktivieren.

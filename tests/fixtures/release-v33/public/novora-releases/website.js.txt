@@ -1,0 +1,125 @@
+'use strict';
+const http = require('node:http');
+const { id } = require('./oauth');
+const escape = str => String(str || '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const wrap = (title, body) => `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(title)} – Novora Verify</title><style>body{font:15px system-ui;background:#f7f9ff;color:#1a2450;margin:0;display:grid;place-items:center;min-height:100vh}.card{background:white;max-width:480px;width:calc(100% - 60px);border-radius:24px;box-shadow:0 20px 60px #22336616;padding:32px}h1{font-size:26px;margin:14px 0}p{color:#63708a;line-height:1.7}.tag{font-size:12px;letter-spacing:1px;color:#6879cc;font-weight:800}.btn{display:block;border:0;background:#6477ed;color:white;width:100%;box-sizing:border-box;padding:14px;border-radius:12px;cursor:pointer;font:700 14px system-ui;margin-top:15px;text-align:center;text-decoration:none}select{padding:12px;width:100%;box-sizing:border-box;border:1px solid #dce2ef;border-radius:10px}label{display:block;margin:14px 0;font-weight:600;font-size:13px}small{display:block;color:#8491ad;margin:20px 0 0}</style></head><body><main class="card"><div class="tag">NOVORA VERIFY</div>${body}</main></body></html>`;
+function startWebsite({ port, publicUrl, websiteUrl, client, oauth, store, bridge, verified }) {
+  const server = http.createServer(async (req,res) => {
+    const send = (status, html, headers={}) => { res.writeHead(status, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store', 'X-Content-Type-Options':'nosniff', 'Referrer-Policy':'no-referrer', 'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'", ...headers }); res.end(html); };
+    try {
+      const loc = new URL(req.url, publicUrl);
+      // Website-to-bot bridge: the site connects to this API, never the other way around.
+      if (loc.pathname.startsWith('/api/bridge/')) {
+        const sendJson=(status,body)=>{ res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(body)); };
+        const readJson=async()=>{const parts=[];let length=0;for await(const chunk of req){length+=chunk.length;if(length>12000)throw new Error('Anfrage zu groß');parts.push(chunk);}return JSON.parse(Buffer.concat(parts).toString('utf8')||'{}');};
+        if(req.method==='POST'&&loc.pathname==='/api/bridge/pair') {const body=await readJson();const result=bridge.pair(body.code);return sendJson(result.status,result.body);}
+        if(!bridge.authorized(req.headers.authorization)) return sendJson(401,{error:'Nicht autorisiert'});
+        if(req.method==='GET'&&loc.pathname==='/api/bridge/changelog')
+          return sendJson(200,{ok:true,...bridge.changelog()});
+        if(req.method==='GET'&&loc.pathname==='/api/bridge/owner-alerts'){
+          try{return sendJson(200,await bridge.ownerAlerts.get(String(loc.searchParams.get('guildId')||''),String(loc.searchParams.get('adminId')||'')));}
+          catch(e){return sendJson(403,{error:String(e.message).slice(0,200)});}
+        }
+        if(req.method==='POST'&&loc.pathname==='/api/bridge/owner-alerts'){
+          const body=await readJson();
+          try{return sendJson(200,await bridge.ownerAlerts.update(String(body.guildId||''),String(body.adminId||''),{action:body.action,category:body.category}));}
+          catch(e){return sendJson(403,{error:String(e.message).slice(0,200)});}
+        }
+        if(req.method==='GET'&&loc.pathname==='/api/bridge/snapshot')return sendJson(200,bridge.snapshot());
+        if(req.method==='GET'&&loc.pathname==='/api/bridge/security-logs') {
+          const guildId=id(loc.searchParams.get('guildId'));
+          const adminId=id(loc.searchParams.get('adminId'));
+          if(!guildId||!adminId)return sendJson(400,{error:'Ungültiger Server / Administrator'});
+          try{return sendJson(200,{ok:true,...await bridge.security.list(guildId,adminId,{
+            level:loc.searchParams.get('level')||undefined,action:loc.searchParams.get('action')||undefined,
+            limit:Math.min(100,Number(loc.searchParams.get('limit')||50))
+          })});}catch(err){return sendJson(403,{error:String(err.message).slice(0,180)})}
+        }
+        if(req.method==='GET'&&loc.pathname==='/api/bridge/security-status') {
+          const guildId=id(loc.searchParams.get('guildId')),adminId=id(loc.searchParams.get('adminId'));
+          if(!guildId||!adminId)return sendJson(400,{error:'Ungültige ID'});
+          try{return sendJson(200,await bridge.security.status(guildId,adminId));}
+          catch(err){return sendJson(403,{error:String(err.message).slice(0,180)})}
+        }
+        if(req.method==='GET'&&loc.pathname==='/api/bridge/ops'){
+          const r=await bridge.ops.read(String(loc.searchParams.get('guildId')||''),String(loc.searchParams.get('adminId')||''));return sendJson(r.status,r.body);
+        }
+        if(req.method==='POST'&&loc.pathname==='/api/bridge/ops'){
+          const body=await readJson();const r=await bridge.ops.update(body);return sendJson(r.status,r.body);
+        }
+        if(req.method==='GET'&&loc.pathname==='/api/bridge/messages'){
+          const guildId=id(loc.searchParams.get('guildId'));
+          const userId=id(loc.searchParams.get('userId'));
+          const adminId=id(loc.searchParams.get('adminId'));
+          if(!guildId||!userId||!adminId)return sendJson(400,{error:'Ungültige Anfrage'});
+          try{return sendJson(200,{ok:true,...await bridge.messages(guildId,userId,adminId)});}
+          catch(e){return sendJson(403,{error:e.message});}
+        }
+        if(req.method==='POST'&&loc.pathname==='/api/bridge/resolve-invite'){
+          const body=await readJson();
+          try{return sendJson(200,{ok:true,...await bridge.resolveInvite(body.invite,body.adminId)});}
+          catch(e){return sendJson(403,{error:e.message});}
+        }
+        if(req.method==='GET'&&loc.pathname==='/api/bridge/member'){const userId=id(loc.searchParams.get('userId'));if(!userId)return sendJson(400,{error:'Ungültige Discord-ID'});const profile=await bridge.detail(userId);return profile?sendJson(200,{member:profile}):sendJson(404,{error:'Mitglied nicht in der Verifizierungsdatenbank'});}
+        if(req.method==='POST'&&loc.pathname==='/api/bridge/role-claim') { const body=await readJson(); const r=await bridge.roleAdmin.claimGuildCode(body.guildId,body.code);return sendJson(r.status,r.body); }
+        if(req.method==='GET'&&loc.pathname==='/api/bridge/role-catalog') {const r=await bridge.roleAdmin.catalog(String(loc.searchParams.get('guildId')||''),String(loc.searchParams.get('userId')||''),String(loc.searchParams.get('adminId')||''));return sendJson(r.status,r.body);}
+        if(req.method==='POST'&&loc.pathname==='/api/bridge/role-request') {const body=await readJson();const r=await bridge.roleAdmin.requestChange(body);return sendJson(r.status,r.body);}
+        if(req.method==='GET'&&loc.pathname==='/api/bridge/role-status') {const r=bridge.roleAdmin.status({requestId:String(loc.searchParams.get('requestId')||''),guildId:String(loc.searchParams.get('guildId')||''),adminId:String(loc.searchParams.get('adminId')||'')});return sendJson(r.status,r.body);}
+        if(req.method==='POST'&&loc.pathname==='/api/bridge/transfer') {
+          const body=await readJson();
+          const guildId=id(body.guildId);
+          const userIds=Array.isArray(body.userIds)?body.userIds.map(id):[];
+          if(!guildId||userIds.length<1||userIds.length>20||userIds.some(x=>!x)||new Set(userIds).size!==userIds.length)return sendJson(400,{error:'Ungültige Member-Transfer-Anfrage'});
+          const results=await bridge.transfer(guildId,userIds);
+          return sendJson(200,{ok:true,results});
+        }
+        return sendJson(404,{error:'Route unbekannt'});
+      }
+      if (req.method === 'GET' && loc.pathname === '/health') return send(200, 'ok');
+      if (req.method === 'GET' && loc.pathname === '/') return send(200, wrap('Willkommen', `<h1>Novora Verify</h1><p>Verifiziere dich über den Link in deinem Discord-Server. Das Admin-Dashboard liegt auf einer separaten Website.</p><a class="btn" href="${escape(websiteUrl)}">Zum Dashboard</a>`));
+      if(req.method==='GET'&&loc.pathname==='/oauth/start') {
+        const gid=id(loc.searchParams.get('guild'));
+        if(!gid||!client.guilds.cache.has(gid))return send(404,wrap('Server fehlt','<h1>Discord-Server nicht gefunden</h1>'));
+        if(!oauth)return send(503,wrap('OAuth2 fehlt','<h1>Discord OAuth2 ist nicht eingerichtet</h1><p>Bitte DISCORD_CLIENT_SECRET prüfen.</p>'));
+        const targets=[...client.guilds.cache.values()].filter(g=>g.id!==gid && store.state.guilds[g.id]?.allowTransfer).slice(0,20).map(g=>g.id);
+        // Authorize identity even if no transfer target exists yet.
+        const authorization=oauth.begin(gid,targets);
+        res.writeHead(303,{Location:authorization,'Cache-Control':'no-store'});return res.end();
+      }
+      if (req.method === 'GET' && loc.pathname === '/verify') {
+        // Legacy link stays compatible but immediately starts the official Discord OAuth2 flow.
+        const guildId=id(loc.searchParams.get('guild'));
+        if(!guildId||!client.guilds.cache.has(guildId))return send(404,wrap('Fehler','<h1>Server nicht gefunden</h1>'));
+        if(!oauth)return send(503,wrap('OAuth2 fehlt','<h1>Discord OAuth2 noch nicht eingerichtet</h1>'));
+        const targets=[...client.guilds.cache.values()].filter(g=>g.id!==guildId&&store.state.guilds[g.id]?.allowTransfer).slice(0,20).map(g=>g.id);
+        res.writeHead(303,{Location:oauth.begin(guildId,targets),'Cache-Control':'no-store'});return res.end();
+      }
+      if (req.method === 'POST' && loc.pathname === '/verify/start') {
+        let raw = ''; for await (const chunk of req) { raw += chunk; if (raw.length > 2000) return send(413, 'Zu große Anfrage'); }
+        const body = new URLSearchParams(raw);
+        const guildId = id(body.get('guild'));
+        if (!guildId || !client.guilds.cache.has(guildId)) return send(400, wrap('Fehler','<h1>Unbekannter Server</h1>'));
+        const allowed = new Set(client.guilds.cache.filter(g => store.state.guilds[g.id]?.allowTransfer && g.id !== guildId).map(g => g.id));
+        const targets = body.getAll('target').filter(g => allowed.has(g)).slice(0, 20);
+        if (body.getAll('target').length !== targets.length) return send(400, wrap('Fehler', '<p>Transferziele sind ungültig. Bitte erneut versuchen.</p>'));
+        if(!oauth)return send(503,wrap('Nicht verfügbar','<p>Optionale Transferfunktion ist nicht eingerichtet.</p>'));
+        // No target selection is needed when only authorizing the account.
+        const url = oauth.begin(guildId, targets);
+        res.writeHead(303, { Location: url, 'Cache-Control':'no-store' }); return res.end();
+      }
+      if (req.method === 'GET' && loc.pathname === '/oauth/callback') {
+        if (loc.searchParams.has('error')) return send(400, wrap('Abgebrochen', '<h1>Verifizierung abgebrochen</h1><p>Discord hat keine Berechtigung erteilt.</p>'));
+        if(!oauth)return send(503,wrap('Nicht verfügbar','<p>Optionale Transferfunktion ist nicht eingerichtet.</p>'));
+        const result = await oauth.complete(loc.searchParams.get('code'), loc.searchParams.get('state'));
+        let roleMessage = '';
+        try { await verified(result.member, result.guildId); }
+        catch (err) { console.warn('Verify role:',err.message); roleMessage='<p>Die Verifizierung wurde gespeichert, aber eine Rolle konnte nicht automatisch vergeben werden. Bitte Team kontaktieren.</p>'; }
+        return send(200, wrap('Erfolgreich', `<h1>✓ Verifiziert</h1><p>Hallo ${escape(result.member.displayName)}! Dein Discord-Account wurde erfolgreich bestätigt.</p>${roleMessage}<p>Member-Transfer: <b>${result.joined ? 'Für ausgewählte Server autorisiert' : 'Nicht aktiviert'}</b></p><a class="btn" href="${escape(websiteUrl)}">Zum Dashboard</a>`));
+      }
+      return send(404, wrap('Nicht gefunden','<h1>Seite nicht gefunden</h1>'));
+    } catch (err) { console.error('OAuth/web error:',err.message); send(400, wrap('Fehler', `<h1>Verifizierung fehlgeschlagen</h1><p>${escape(err.message)}</p><p>Bitte erneut über Discord beginnen.</p>`)); }
+  });
+  server.listen(port, '0.0.0.0', () => console.log(`Novora bot bridge listening on :${port}`));
+  return server;
+}
+module.exports = { startWebsite };

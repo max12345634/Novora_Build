@@ -1,0 +1,30 @@
+NOVORA VERIFY V4.6.0 — LOKALER PANEL- UND SETUP-QUALITÄTSBERICHT
+Datum: 23.10.2026 (02:00, Europe/Berlin)
+
+BASIS
+NovoraVerify_V4.5_PREMIUM_VOLLVERSION.zip aus der ChatGPT-Dateibibliothek.
+Die bestehende V4.5-Updater-Härtung und alle bisherigen Systeme wurden beibehalten.
+
+KONKRET UMGESETZT
+1. src/panel-sync.js: Bot-Urheberschaft gespeicherter Panelnachrichten vor dem Editieren oder Löschen überprüfen. Eine fremde Nachricht wird weder editiert noch gelöscht.
+2. Bei Legacy-Embed-Migration die neue Panel-ID ZUERST mit dem vorhandenen Persistenz-Callback speichern, ERST DANACH das alte Panel löschen.
+3. Scheitert das Speichern der neuen ID, wird versucht, die alte ID wiederherzustellen und die neue Nachricht zu löschen. Alte Nachricht bleibt bestehen.
+4. Scheitert das Löschen der alten Nachricht, wird die alte ID vor dem Löschen der neuen Nachricht wiederhergestellt.
+5. Scheitert auch die Wiederherstellung, wird die neue Nachricht NICHT gelöscht: Der möglicherweise gespeicherte Verweis bleibt erreichbar; das Setup meldet die nötige manuelle Kontrolle.
+6. Migration ohne ID-Persistenz-Callback wird verweigert, um verwaiste öffentliche Panels zu vermeiden.
+7. Fehlerhafte Panel-Payloads liefern eine kontrollierte Fehlermeldung statt eines unkontrollierten Wurfs.
+8. src/changelog.js: doppelte 4.4.0-Versionskarte entfernt.
+9. Version auf 4.6.0 angehoben; Tests für Versionsanzeigen auf package.json als gemeinsame Versionsquelle umgestellt.
+10. npm run check prüft nun auch src/panel-sync.js explizit.
+
+TESTS
+Vorher (V4.5): 182 gesamt / 181 bestanden / 0 fehlgeschlagen / 1 übersprungen.
+Nachher (V4.6): 189 gesamt / 188 bestanden / 0 fehlgeschlagen / 1 übersprungen.
+Neue Tests: fremde Urheberschaft, fehlender Persistenz-Callback, fehlerhafter Persistenz-Commit, fehlgeschlagene Discord-Löschung, fehlgeschlagener Rollback, ungültige Panelkomponenten, eindeutige Changelog-Versionen.
+Befehl: npm run check && npm test
+
+GRENZEN
+Nur lokale Mock- und Unit-Tests, kein echter Discord- oder BotHosting-Livetest.
+Discord-API kann bei Netzwerkunterbrechungen einen Löschaufruf trotz Fehlermeldung bereits ausgeführt haben; manuelle Prüfung der Fehlermeldung empfohlen.
+Kein neues signiertes OTA-Manifest und kein Auto-Publishing.
+Kein .env, data/, Bot-Token oder privater Signierschlüssel in der ZIP.

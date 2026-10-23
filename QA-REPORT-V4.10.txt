@@ -1,0 +1,25 @@
+NOVORA VERIFY V4.10 – QUALITÄTSBERICHT (23.10.2026)
+
+Basis: NovoraVerify_V4.9_PREMIUM_VOLLVERSION.zip aus der ChatGPT-Dateibibliothek.
+Schwerpunkt: Components-V2-Design, Panel-Kompatibilität, Setup und Regression.
+
+TATSÄCHLICHE CODEÄNDERUNGEN
+1) src/message-flags.js (neu): Discord-MessageFlags als Zahl, bigint oder BitField robust auf IS_COMPONENTS_V2 prüfen; fehlende/ungültige Flags als Legacy behandeln.
+2) src/panel-sync.js: Auch alte reine Text-/Button-Panels ohne Embeds migrieren; keine Änderung bei unbekannter Bot-Identität; Ersatznachrichten ohne ID nach Möglichkeit löschen, alte Nachricht beibehalten.
+3) src/ui-v2.js: Direktes Publizieren unterscheidet V2 und Legacy über MessageFlags; fehlende neue Nachrichten-ID lässt altes Panel unangetastet; fehlerhafte Rollbacks melden mögliche Doppelungen.
+4) src/setup-flow.js: Beschriftungen und Auswahl für Bewerbungen konsistent auf Team-Bewerbungen angepasst; keine neuen Bewerbungsarten.
+5) src/changelog.js, src/version-label.js, package.json, README.md, CHANGELOG.txt, INSTALLATION.txt und Startdatei aktualisiert. Fehlerhafte V4.9-Überschrift für den V4.8-Transkript-Eintrag korrigiert.
+6) tests/v410-panel-compatibility.test.js: elf neue Regressionstests; ältere Tests mit realistischen Discord-Nachrichten-Flags ergänzt.
+
+TESTERGEBNISSE
+V4.9-Basis: 213 Tests, 212 bestanden, 0 fehlgeschlagen, 1 übersprungen.
+V4.10: 224 Tests, 223 bestanden, 0 fehlgeschlagen, 1 übersprungen.
+JavaScript-Syntaxprüfung: npm run check erfolgreich.
+ZIP-Integrität: erfolgreich (291 Dateien); erneutes Entpacken mit npm run check und npm test: erfolgreich (224/223/0/1).
+Zusätzliche Prüfung: Syntax sämtlicher 87 JavaScript-Dateien, 79 PNG-Bilddateien und 2 OGG-Dateien erfolgreich.
+
+BEKANNTE GRENZEN
+- Kein echter Discord-/BotHosting-Livetest. Discord-Mocks decken typische MessageFlags und API-Fehler ab.
+- Direktes Veröffentlichen über ui.publish() migriert weiterhin mit dem vorhandenen API-Vertrag; ein Absturz zwischen Discord-Löschung und Persistenz der neuen ID in aufrufenden Modulen kann eine manuelle Prüfung erfordern. Die /setup-Panelaktualisierung benutzt den sichereren Persistenz-vor-Löschung-Pfad.
+- Falls Discord nach dem Senden keine ID liefert oder eine Löschung verweigert, ist eine manuelle Kontrolle auf Doppelungen nötig.
+- Kein unsigniertes OTA-Update; .env, data/, node_modules/ und Signierschlüssel nicht enthalten.

@@ -1,0 +1,34 @@
+NOVORA VERIFY V4.17.2 – KRITISCHE UPDATE-REPARATUR
+23. Oktober 2026
+
+FEHLER (V4.17.1):
+Wenn eine Installation während backupAndInstall() scheiterte UND der interne
+Rollback ebenfalls fehlschlug, erhielt der Supervisor noch keine
+Installationsquittung. Sein allgemeiner Fehlerpfad konnte dann den Bot
+mit teilweise ersetzten Dateien erneut starten.
+
+BEHEBUNG (V4.17.2):
+- backupAndInstall() kennzeichnet diesen Zustand explizit als
+  manualRecoveryRequired=true und liefert den Pfad der erhaltenen Sicherung.
+- Der Supervisor stoppt in diesem kritischen Fall und startet den Worker NICHT
+  automatisch erneut. update-status.json meldet manualRecoveryRequired=true.
+- Die bisherige Ed25519-Signaturprüfung, SHA-256-Prüfung, JS-Syntaxprüfung,
+  Backup- und Rollback-Mechanik bleiben unverändert aktiv.
+- Bestehende .env und data/ werden nicht in der ZIP ausgeliefert.
+
+TESTS:
+- Zwei neue gezielte Regressionstests simulieren Installationsfehler und
+  gleichzeitig einen fehlgeschlagenen Rollback; sie prüfen Sicherungserhalt,
+  Fehlerstatus und ausbleibenden Worker-Neustart.
+- Offline-Tests zu Signatur, SHA-256, Manifest, Fall-ID-Suche und Rollback.
+- Keine Live-Installation auf BotHosting, kein signiertes Release veröffentlicht.
+
+WICHTIG:
+- Die Version muss EINMALIG manuell installiert werden, weil
+  src/updater.js und src/supervisor.js bewusst nicht selbst-updatefähig sind.
+- Der bisherige private Ed25519-Signierschlüssel fehlt weiterhin.
+- Für ein produktives Auto-Update muss ein gültig signiertes Release
+  veröffentlicht und ein BotHosting-Live-Test durchgeführt werden.
+- Bei einem kritischen Fehler ist eine Sicherung im System-Temp-Verzeichnis
+  erhalten. Diese muss vor einem Neustart manuell geprüft werden; bei einem
+  Container-Recycle kann dieses Verzeichnis verschwinden.

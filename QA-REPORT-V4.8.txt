@@ -1,0 +1,26 @@
+NOVORA VERIFY V4.8 – QUALITÄTSBERICHT (23.10.2026)
+
+Basis: NovoraVerify_V4.7_PREMIUM_VOLLVERSION.zip aus ChatGPT-Dateibibliothek.
+Fokus: Transkripte, Anhänge, sichere Wiederholungen, Dateidownload.
+
+KONKRETE CODEÄNDERUNGEN
+1) src/ticket-archive.js: eindeutige unveränderliche JSON-Datei pro Archivierung; alte Backups werden nicht überschrieben.
+2) src/ticket-archive.js: bei persist()-Fehler werden vorheriger Indexeintrag, Token und hasTranscript-Status im Speicher restauriert. Neue Snapshots bleiben bei unklarer Datenträgerlage erhalten.
+3) src/ticket-archive.js: ungültige Tokens werden nicht übernommen; Tokens anderer Tickets/Server werden nicht umgebogen.
+4) src/website.js: lstat() prüft Verzeichnis und Datei; O_NOFOLLOW und fstat() verhindern Symlink-Downloads und TOCTOU beim letzten Dateipfadsegment.
+5) tests/support-transcript.test.js: Test für neue Index-basierte Snapshot-Pfade angepasst.
+6) tests/v48-archive-hardening.test.js: sechs neue Tests: fehlgeschlagener Retry, erster Indexfehler, erfolgreicher Retry, Datei-/Ordner-Symlink, nach Schreibvorgang werfendes persist(), Token-Kollision.
+
+TESTERGEBNISSE
+V4.7 Basis: 195 Tests, 194 bestanden, 0 fehlgeschlagen, 1 übersprungen.
+V4.8: 201 Tests, 200 bestanden, 0 fehlgeschlagen, 1 übersprungen.
+JavaScript-Syntaxprüfung: npm run check erfolgreich.
+ZIP-Integrität und erneutes Entpacken: separat geprüft.
+
+BEKANNTE GRENZEN
+- Lokale Tests mit Mocks, keine echte Discord-API- oder BotHosting-Installation.
+- Token-Links sind Bearer-Links ohne Discord-Login: nur privat weitergeben.
+- Fehlgeschlagene/erneute Archivierungen können unreferenzierte ältere Snapshots erzeugen; automatische Bereinigung wurde absichtlich nicht eingeführt, um bei unklaren Persistenzfehlern keinen Datenverlust zu verursachen.
+- Der Dateizugriff ist gegen Datei- und Ordner-Symlinks im Archivpfad abgesichert; ein vollständig bösartiger lokaler Administrator kann weiterhin Daten verändern.
+- Der bestehende Ed25519-Auto-Updater wurde nicht ersetzt; keine unsignierte OTA-Veröffentlichung.
+- .env, data/, node_modules/ und private Signierschlüssel sind nicht im ZIP.

@@ -1,0 +1,47 @@
+NOVORA VERIFY V4.11 – ABSCHLUSS-QUALITÄTSBERICHT (23.10.2026, 07:00)
+
+BASIS
+NovoraVerify_V4.10_PREMIUM_VOLLVERSION.zip; SHA-256 der Basis:
+6a2f621eb704d0c18ef72eb166fa1bf79d8c221fa6e2bce384a447ac11b32399
+
+TATSÄCHLICHE ÄNDERUNGEN IN RUNDE 7
+- src/store.js: atomare Speicherung von data/state.json über exklusive zufällige temporäre Dateien statt wiederverwendeter state.json.tmp; private Dateirechte (0600); Datei-fsync vor Umbenennung, Verzeichnis-fsync soweit vom Host unterstützt; Bereinigung nach fehlgeschlagenem Commit. Bisheriger Zustand bleibt nach Schreib-/Umbenennungsfehlern erhalten.
+- tests/v411-persistence.test.js: sechs neue echte Regressionstests (private Dateirechte, Wiederladen, vorhandene .tmp-Datei, Symlink-Umleitung, 25 parallele Persistenzaufrufe, simulierte Rename-Fehler und Recovery).
+- package.json, src/version-label.js, src/changelog.js: Versionskonsistenz V4.11.0.
+- README.md, INSTALLATION.txt, START-HIER-V4.11.txt, CHANGELOG.txt: Installations-/Versionshinweise.
+- LIVE-TEST-CHECKLIST-V4.11.md: vollständige praktische Testmatrix für BotHosting, Discord, OAuth, Dashboard, Tickets, Partner, Bewerbungen, Fraktionen, Voice, Logs, Sicherheit und Restart.
+
+LOKALE TESTERGEBNISSE (vor Release-ZIP)
+- Node.js 22.16.0, npm 10.9.2.
+- V4.10-Basis: 224 Tests, 223 bestanden, 0 fehlgeschlagen, 1 übersprungen.
+- V4.11: 230 Tests, 229 bestanden, 0 fehlgeschlagen, 1 übersprungen.
+- npm run check: erfolgreich.
+- node --check aller 88 JavaScript-Dateien: erfolgreich.
+- 79 PNG-Dateien mit Bilddecoder geprüft, 2 OGG-Dateien auf OggS-Header geprüft.
+- Paket-/ZIP-Integrität, Ausschluss von .env, data/ und privaten Schlüsseln sowie frischer Entpacktest: siehe untenstehende nachträglich aktualisierte Freigabekontrolle.
+
+ZUSAMMENFASSUNG DER SIEBEN RUNDE(N)
+1) V4.5: Signatur/Hash-Staging-Prüfung und sicherer Update-Commit.
+2) V4.6: gespeicherte Panel-IDs, Bot-Autorprüfung und Rollback bei Migration.
+3) V4.7: Ticket-/Bewerbungs-/Fraktions-Zustandswechsel und Retry.
+4) V4.8: Transkript-Snapshots, Tokenbindung und Symlink-Schutz bei Anhängen.
+5) V4.9: Voice-Beitritte, Backoff, Audio-Fehler, Join/Leave-Rollback.
+6) V4.10: Discord-Components-V2-Flags, Legacy-Panel-Migration, Setup-Konsistenz.
+7) V4.11: crash-resistentere private state.json-Speicherung und Abschluss-Testmatrix.
+
+GRENZEN / RISIKEN
+- Alle Tests sind lokal; es gab KEINE echte Discord-Verbindung und KEINEN BotHosting-Livetest. Die installierten npm-Abhängigkeiten wurden hier nicht vollständig gegen BotHosting ausgeführt; manche Tests verwenden Discord-Stubs.
+- Direktes ui.publish() außerhalb der sicheren /setup-Migrationsfunktion hat weiterhin eine nicht atomare Lücke zwischen Discord-Löschung und Speicherung der neuen Panel-ID. Manuelle Prüfung bei Fehlern.
+- Discord-Forenpost und lokaler Commit sind nicht gemeinsam atomar; bei einem Crash genau zwischen diesen Schritten auf Duplikate prüfen.
+- Transkriptlinks sind geheime Bearer-Links ohne Discord-Login. Nicht öffentlich posten.
+- data/encryption.key, data/state.json und .env sind NICHT Teil des ZIPs. Vor Update extern sichern.
+- Es wurde KEIN unsigniertes OTA-Release veröffentlicht.
+
+EMPFOHLENE ABNAHME
+Nur nach erfolgreichem BotHosting-Start, OAuth-/Discord-Livetest und vollständiger Bearbeitung der LIVE-TEST-CHECKLIST-V4.11.md produktiv freigeben.
+
+FREIGABEKONTROLLE – ERSTER ARCHIVBUILD
+- ZIP enthielt 294 Dateien; Integritätstest erfolgreich.
+- Keine .env, kein data/, kein node_modules/, keine .pem/.key/.p12-Dateien im Archiv.
+- Nach erneutem Entpacken: npm run check erfolgreich, npm test: 230/229 bestanden/0 fehlgeschlagen/1 übersprungen.
+- Die Programmdateien sind nicht mit einer echten Discord-API oder einem laufenden BotHosting-Container verbunden worden.

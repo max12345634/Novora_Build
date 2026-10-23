@@ -1,0 +1,506 @@
+'use strict';
+// Novora Partnerships: private per-guild tickets, explicit staff decisions and Discord forum posts.
+const {
+  SlashCommandBuilder, ChannelType, PermissionFlagsBits, PermissionsBitField, MessageFlags,
+  EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle,
+  ModalBuilder, TextInputBuilder, TextInputStyle, AttachmentBuilder
+}=require('discord.js');
+const path=require('node:path');
+const fs=require('node:fs');
+const { randomUUID }=require('node:crypto');
+const { recordAudit }=require('./control');
+const {TIERS,tierFor,scorePartnership,tierCount}=require('./partnership-analysis');
+const partnerArt=require('./partner-art');
+
+const ACTIONS=Object.freeze({
+  apply:{label:'Partnerschaft beantragen',prefix:'antrag',description:'Eine neue Partnerschaft vorschlagen'},
+  change:{label:'Partnerschaft ändern',prefix:'aenderung',description:'Bestehende Partnerschaft aktualisieren'},
+  cancel:{label:'Partnerschaft kündigen',prefix:'kuendigung',description:'Eine bestehende Partnerschaft beenden'}
+});
+const COLORS=Object.freeze({neutral:0x53648A,open:0x7285A5,claimed:0x5773D8,approved:0x238767,rejected:0xB34A5C});
+const own=s=>String(s??'').replace(/<a?:[\w-]+:\d+>/g,'').replace(/[\p{Extended_Pictographic}\uFE0F\u200D\u200B-\u200F]/gu,'').replace(/[^\p{L}\p{N} ._'\-]/gu,'').replace(/\s+/g,' ').trim().slice(0,85)||'Community';
+const plain=(value,max=300)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,max);
+const esc=s=>String(s).replace(/([\\*_~`|>])/g,'\\$1');
+const nameSlug=value=>own(value).toLowerCase().normalize('NFKD').replace(/[^a-z0-9\-]/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'').slice(0,35)||'partner';
+function inviteCode(value){
+  const s=String(value||'').trim();
+  const m=s.match(/^https:\/\/(?:discord\.gg|discord(?:app)?\.com\/invite)\/([A-Za-z0-9-]{2,40})(?:\/?(?:\?[^\s]*)?)?$/i);
+  if(!m)throw Error('Bitte einen vollständigen Discord-Einladungslink (https://discord.gg/...) angeben.');
+  return m[1];
+}
+function validateForm(kind,fields){
+  if(!ACTIONS[kind])throw Error('Unbekannte Ticketart');
+  const title=plain(fields.server,80);if(title.length<2)throw Error('Servername zu kurz');
+  const invite=String(fields.invite||'').trim();
+  if(invite)inviteCode(invite);
+  if(kind!=='cancel'&&!invite)throw Error('Discord-Einladung erforderlich');
+  const members=plain(fields.members||'',10);
+  if(kind==='apply'&&(!/^\d{1,9}$/.test(members)||Number(members)<1))throw Error('Mitgliederzahl muss eine positive Zahl sein');
+  if(kind==='change'&&members&&!/^\d{1,9}$/.test(members))throw Error('Mitgliederzahl muss eine Zahl sein');
+  const advert=String(fields.advert||'').trim();
+  if(kind==='apply'&&advert.length<10)throw Error('Bitte eine Serverwerbung eingeben (mindestens 10 Zeichen)');
+  if(advert.length>1000)throw Error('Serverwerbung zu lang (maximal 1.000 Zeichen)');
+  const extra=plain(fields.extra||'',450);
+  if(kind==='cancel'&&extra.length<3)throw Error('Bitte einen Kündigungsgrund angeben');
+  return {server:title,invite,members:members?Number(members):null,advert,extra,inviteKey:invite?inviteCode(invite):''};
+}
+const configFor=(store,gid)=>store.state.partnershipSettings?.[gid]||null;
+const tickets=store=>store.state.partnershipTickets||(store.state.partnershipTickets={});
+const partners=store=>store.state.partnershipRecords||(store.state.partnershipRecords={});
+function settingsPayload(guild,opts){
+  if(!guild||!guild.id)throw Error('Guild erforderlich');
+  for(const key of ['panelChannel','ticketCategory','forumChannel','teamRole','partnerRole'])if(!opts[key])throw Error('Es fehlt: '+key);
+  if(opts.panelChannel.type!==ChannelType.GuildText)throw Error('Panel braucht einen normalen Textkanal');
+  if(opts.ticketCategory.type!==ChannelType.GuildCategory)throw Error('Ticketablage muss eine Discord-Kategorie sein');
+  if(opts.forumChannel.type!==ChannelType.GuildForum)throw Error('Partnerschaftsbeiträge brauchen einen Forumkanal');
+  if(opts.teamRole.id===guild.id||opts.partnerRole.id===guild.id)throw Error('@everyone darf keine Team- oder Partnerrolle sein');
+  if(opts.teamRole.id===opts.partnerRole.id)throw Error('Teamrolle und Partnerrolle müssen verschieden sein');
+  if(opts.pingRole&&opts.pingRole.id===guild.id)throw Error('@everyone als Ping-Rolle ist nicht erlaubt');
+  return {panelChannelId:opts.panelChannel.id,ticketCategoryId:opts.ticketCategory.id,forumChannelId:opts.forumChannel.id,teamRoleId:opts.teamRole.id,partnerRoleId:opts.partnerRole.id,pingRoleId:opts.pingRole?.id||null,logChannelId:opts.logChannel?.id||null,panelMessageId:null,updatedAt:Date.now()};
+}
+function assertStaff(member,cfg,guild){
+  if(!member||!guild||!cfg)return false;
+  if(guild.ownerId===member.id)return true;
+  if(member.permissions.has(PermissionFlagsBits.Administrator))return true;
+  return member.roles.cache.has(cfg.teamRoleId);
+}
+function controls(ticket){
+  if(ticket.status==='closed')return [];
+  const row=new ActionRowBuilder();
+  if(ticket.status==='open')row.addComponents(new ButtonBuilder().setCustomId(`nvp:claim:${ticket.id}`).setLabel('Übernehmen').setStyle(ButtonStyle.Primary));
+  if(ticket.status==='claimed')row.addComponents(
+    new ButtonBuilder().setCustomId(`nvp:approve:${ticket.id}`).setLabel('Annehmen').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`nvp:reject:${ticket.id}`).setLabel('Ablehnen').setStyle(ButtonStyle.Danger)
+  );
+  if(ticket.status==='open'||ticket.status==='claimed')row.addComponents(new ButtonBuilder().setCustomId(`nvp:analyze:${ticket.id}`).setLabel('Analyse').setStyle(ButtonStyle.Secondary));
+  row.addComponents(new ButtonBuilder().setCustomId(`nvp:close:${ticket.id}`).setLabel('Schließen').setStyle(ButtonStyle.Secondary));
+  return [row];
+}
+function tagIcon(store,tier){
+  const label=TIERS[tier];if(!label)return '';
+  const id=store?.state?.appEmojis?.[label.icon];
+  return id?`<:${label.icon}_flat:${id}> `:'';
+}
+function ticketEmbed(guild,ticket,store){
+  const status={open:'Offen',claimed:'Übernommen',approved:'Angenommen',rejected:'Abgelehnt',closed:'Geschlossen'}[ticket.status]||ticket.status;
+  const e=new EmbedBuilder().setColor(ticket.status==='approved'?COLORS.approved:ticket.status==='rejected'?COLORS.rejected:ticket.status==='claimed'?COLORS.claimed:COLORS.open)
+    .setTitle(ACTIONS[ticket.kind].label).setDescription(`**${esc(ticket.form.server)}**\n\n${ticket.tier?tagIcon(store,ticket.tier)+TIERS[ticket.tier].label+' · ':''}Status: **${status}**`)
+    .addFields({name:'Ansprechpartner',value:`<@${ticket.requesterId}>`,inline:true},
+      {name:'Bearbeitung',value:ticket.claimedBy?`<@${ticket.claimedBy}>`:'Noch nicht übernommen',inline:true},
+      {name:'Einladung',value:ticket.form.invite||'Nicht angegeben',inline:false});
+  if(ticket.form.members)e.addFields({name:'Mitglieder',value:ticket.form.members.toLocaleString('de-DE'),inline:true});
+  if(ticket.analysis){
+    const a=ticket.analysis;
+    e.addFields({name:'Novora Analyse · Bewerbungsqualität',value:`**${a.score}/100 · ${a.level}**\n${a.recommendation}`,inline:false});
+    e.addFields({name:'Prüfung',value:'*Automatische Text- und Vollständigkeitsprüfung – keine Annahmeentscheidung.*'});
+  }
+  if(ticket.form.advert)e.addFields({name:'Serverwerbung',value:esc(ticket.form.advert).slice(0,1000)});
+  if(ticket.form.extra)e.addFields({name:'Hinweis / Grund',value:esc(ticket.form.extra).slice(0,450)});
+  return e.setFooter({text:`${own(guild.name)} · Partnerschaften · Novora`}).setTimestamp(ticket.createdAt);
+}
+function panelEmbed(guild,store){
+  const e=new EmbedBuilder().setColor(COLORS.neutral)
+    .setAuthor({name:own(guild.name),iconURL:guild.iconURL({extension:'png',size:128})||undefined})
+    .setTitle('Partnerschaften')
+    .setDescription('Neue Partnerschaft, Änderung oder Kündigung.\n\n**Wähle unten dein Anliegen.** Das Formular eröffnet ein privates Ticket.')
+    .setFooter({text:`${own(guild.name)} · Novora Partnerships`});
+  if(guild.iconURL({extension:'png',size:128}))e.setThumbnail(guild.iconURL({extension:'png',size:128}));
+  const c=tierCount(store.state.partnershipRecords,guild.id);
+  e.addFields({name:'Aktive Partnerschaften',value:String(c.active),inline:true},
+    {name:'Größenklassen',value:`${tagIcon(store,'small')}Klein: ${c.small}  ·  ${tagIcon(store,'medium')}Mittel: ${c.medium}  ·  ${tagIcon(store,'large')}Groß: ${c.large}`,inline:false});
+  return e;
+}
+function panelComponents(guildId,store){
+  const iconIds=store.state.appEmojis||{};
+  const iconNames={apply:'nv_partner',change:'nv_partner_edit',cancel:'nv_partner_end'};
+  const options=Object.entries(ACTIONS).map(([value,item])=>{
+    const option={label:item.label,description:item.description,value};
+    if(iconIds[iconNames[value]])option.emoji={id:iconIds[iconNames[value]],name:iconNames[value]+'_flat'};
+    return option;
+  });
+  return [new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(`nvp:select:${guildId}`).setPlaceholder('Anliegen auswählen').addOptions(options))];
+}
+function buildModal(guildId,kind){
+  const action=ACTIONS[kind];if(!action)throw Error('Unbekannte Ticketart');
+  const modal=new ModalBuilder().setCustomId(`nvp:form:${kind}:${guildId}`).setTitle(action.label);
+  const inputs=[
+    {id:'server',label:'Discord-Servername',style:TextInputStyle.Short,required:true,max:80},
+    {id:'invite',label:'Discord-Einladung',style:TextInputStyle.Short,required:kind!=='cancel',max:180},
+    {id:'members',label:'Mitgliederanzahl',style:TextInputStyle.Short,required:kind==='apply',max:9},
+    {id:'advert',label:kind==='cancel'?'Zusatzinformation':'Serverwerbung',style:TextInputStyle.Paragraph,required:kind==='apply',max:1000},
+    {id:'extra',label:kind==='cancel'?'Grund der Kündigung':'Weitere Informationen (optional)',style:TextInputStyle.Paragraph,required:kind==='cancel',max:450}
+  ];
+  for(const f of inputs)modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId(f.id).setLabel(f.label).setStyle(f.style).setRequired(f.required).setMaxLength(f.max)));
+  return modal;
+}
+function forumContent(ticket,cfg,store){
+  // Only the explicitly configured role can be mentioned. Untrusted advertising is not used for mentions.
+  const head=cfg.pingRoleId?`<@&${cfg.pingRoleId}>\n`:'';
+  const tier=ticket.tier||tierFor(ticket.form.members);
+  const label=tier?`${tagIcon(store,tier)}${TIERS[tier].label}`:'Größe noch offen';
+  return {content:(head+`**Partnerschaft: ${esc(ticket.form.server)}**\n**Kategorie:** ${label}\n**Mitglieder:** ${ticket.form.members?.toLocaleString('de-DE')||'Nicht angegeben'}\n\n${ticket.form.advert}\n\n**Einladung:** ${ticket.form.invite}\n**Ansprechpartner:** <@${ticket.requesterId}>\n**Bearbeitet von:** <@${ticket.claimedBy}>`).slice(0,1950),allowedMentions:{parse:[],roles:cfg.pingRoleId?[cfg.pingRoleId]:[],users:[]}};
+}
+async function ensureForumTags(forum){
+  const desired=Object.values(TIERS).map(t=>t.forumTag);
+  const tags=[...(forum.availableTags||[])];
+  const missing=desired.filter(label=>!tags.some(t=>t.name===label));
+  const resolved=Object.fromEntries(Object.entries(TIERS).map(([tier,data])=>{
+    const found=forum.guild?.emojis?.cache?.find(e=>e.name===data.icon);
+    return [data.forumTag,found?.id||null];
+  }));
+  const needsEmoji=tags.some(t=>resolved[t.name]&&!t.emoji?.id);
+  if((missing.length||needsEmoji)&&tags.length+missing.length<=20&&typeof forum.setAvailableTags==='function'){
+    const updated=tags.map(t=>resolved[t.name]&&!t.emoji?.id?{...t,emoji:{id:resolved[t.name]}}:t);
+    for(const name of missing){const item={name,moderated:true};if(resolved[name])item.emoji={id:resolved[name]};updated.push(item);}
+    await forum.setAvailableTags(updated,'Novora Partnerschaftskategorien').catch(()=>{});
+  }
+  return Object.fromEntries((forum.availableTags||[]).filter(t=>desired.includes(t.name)).map(t=>[t.name,t.id]));
+}
+function formForChange(existing,changes){
+  const form={...existing,...changes};
+  for(const key of ['invite','advert','extra'])if(!String(changes[key]||'').trim())form[key]=existing[key];
+  if(!changes.members)form.members=existing.members;
+  return form;
+}
+function forumTierTag(tags,tier){const label=TIERS[tier]?.forumTag;return label&&tags[label]?[tags[label]]:[];}
+function makePartnerships({client,store}){
+  const busy=new Set();
+  const commands=[
+    new SlashCommandBuilder().setName('partnerschaft-setup').setDescription('Partnerschaftspanel, Team und Forum einrichten (Admin)')
+      .addChannelOption(o=>o.setName('panel').setDescription('Kanal für das Auswahlpanel').setRequired(true).addChannelTypes(ChannelType.GuildText))
+      .addChannelOption(o=>o.setName('tickets').setDescription('Kategorie für private Tickets').setRequired(true).addChannelTypes(ChannelType.GuildCategory))
+      .addChannelOption(o=>o.setName('forum').setDescription('Forum für angenommene Partnerschaften').setRequired(true).addChannelTypes(ChannelType.GuildForum))
+      .addRoleOption(o=>o.setName('team').setDescription('Rolle der zuständigen Mitarbeiter').setRequired(true))
+      .addRoleOption(o=>o.setName('partnerrolle').setDescription('Rolle für angenommene Partner').setRequired(true))
+      .addRoleOption(o=>o.setName('pingrolle').setDescription('Rolle bei neuen Partner-Posts erwähnen (optional)').setRequired(false))
+      .addChannelOption(o=>o.setName('logkanal').setDescription('Kanal für Ticket-Ereignisse (optional)').setRequired(false).addChannelTypes(ChannelType.GuildText)),
+    new SlashCommandBuilder().setName('partnerschaft-panel').setDescription('Sauberes Partnerschafts-Auswahlpanel senden (Admin)'),
+    new SlashCommandBuilder().setName('partnerschaft-status').setDescription('Status der Partnerschaftskonfiguration (Admin)'),
+    new SlashCommandBuilder().setName('partnerschaft-statistik').setDescription('Partnerschaftskategorien und offene Tickets (Team)'),
+    new SlashCommandBuilder().setName('partnerschaft-sync').setDescription('Mitgliederzahlen und Partner-Tags anhand Discord-Einladungen abgleichen (Admin)'),
+    new SlashCommandBuilder().setName('partnerschaft-emojis').setDescription('Drei kleine Forum-Tag-Emojis für diesen Server installieren (Admin)')
+  ];
+  async function log(guild,cfg,ticket,action,userId,note=''){
+    recordAudit(store,{guildId:guild.id,actorId:userId,action:'partnership_'+action,details:ticket.form.server+' · '+note});
+    if(!cfg.logChannelId)return;
+    try{const ch=await guild.channels.fetch(cfg.logChannelId);if(ch?.send)await ch.send({embeds:[new EmbedBuilder().setColor(COLORS.neutral).setTitle('Partnerschaften · '+action).setDescription(`**${esc(ticket.form.server)}**\nTicket: <#${ticket.channelId}>\nAntragsteller: <@${ticket.requesterId}>\nAktion von: <@${userId}>${note?'\n'+esc(note):''}`).setTimestamp()],allowedMentions:{parse:[]}})}catch(err){console.warn('Partnerschaftslog konnte nicht gesendet werden:',err.message)}
+  }
+  const cfgOf=i=>configFor(store,i.guildId);
+  async function setup(interaction){
+    if(!interaction.inGuild()||!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator))return interaction.reply({content:'Nur Server-Administratoren.',flags:MessageFlags.Ephemeral});
+    const names={panelChannel:'panel',ticketCategory:'tickets',forumChannel:'forum',teamRole:'team',partnerRole:'partnerrolle',pingRole:'pingrolle',logChannel:'logkanal'};
+    const o={};for(const [key,field] of Object.entries(names))o[key]=key.endsWith('Role')?interaction.options.getRole(field):interaction.options.getChannel(field);
+    let settings;try{settings=settingsPayload(interaction.guild,o)}catch(e){return interaction.reply({content:e.message,flags:MessageFlags.Ephemeral})}
+    const me=await interaction.guild.members.fetchMe();
+    if(!me.permissions.has([PermissionFlagsBits.ManageChannels,PermissionFlagsBits.ManageRoles,PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.EmbedLinks]))return interaction.reply({content:'Dem Bot fehlen Rechte: Manage Channels, Manage Roles, View Channel, Send Messages oder Embed Links.',flags:MessageFlags.Ephemeral});
+    if(o.partnerRole.managed||o.partnerRole.position>=me.roles.highest.position)return interaction.reply({content:'Die Partnerrolle liegt über der Bot-Rolle oder ist verwaltet. Bitte Rollenreihenfolge korrigieren.',flags:MessageFlags.Ephemeral});
+    for(const ch of [o.panelChannel,o.forumChannel,o.logChannel].filter(Boolean)){
+      if(!ch.permissionsFor(me)?.has([PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages]))return interaction.reply({content:'Der Bot kann im Kanal '+ch.name+' nicht schreiben.',flags:MessageFlags.Ephemeral});
+    }
+    const previous=configFor(store,interaction.guildId);
+    store.state.partnershipSettings=store.state.partnershipSettings||{};
+    store.state.partnershipSettings[interaction.guildId]={...settings,panelMessageId:previous?.panelMessageId||null};
+    await store.persist();
+    return interaction.reply({content:'**Partnerschaften eingerichtet.**\nPanel: <#'+settings.panelChannelId+'>\nTickets: <#'+settings.ticketCategoryId+'>\nForum: <#'+settings.forumChannelId+'>\nTeam: <@&'+settings.teamRoleId+'>\nPartnerrolle: <@&'+settings.partnerRoleId+'>\nJetzt `/partnerschaft-panel` ausführen.',allowedMentions:{parse:[]},flags:MessageFlags.Ephemeral});
+  }
+  async function sendPanel(interaction){
+    if(!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator))return interaction.reply({content:'Nur Server-Administratoren.',flags:MessageFlags.Ephemeral});
+    const cfg=cfgOf(interaction);if(!cfg)return interaction.reply({content:'Zuerst `/partnerschaft-setup` ausführen.',flags:MessageFlags.Ephemeral});
+    await interaction.deferReply({flags:MessageFlags.Ephemeral});
+    const ch=await interaction.guild.channels.fetch(cfg.panelChannelId);
+    if(!ch?.send||ch.type!==ChannelType.GuildText)return interaction.editReply('Der konfigurierte Panelkanal existiert nicht mehr.');
+    const payload={embeds:[panelEmbed(interaction.guild,store)],components:panelComponents(interaction.guildId,store),allowedMentions:{parse:[]}};
+    const banner=path.join(__dirname,'..','assets','partnerships','novora-partnerships-banner.png');
+    if(fs.existsSync(banner)||partnerArt['partnerships/novora-partnerships-banner.png']) {const source=fs.existsSync(banner)?banner:Buffer.from(partnerArt['partnerships/novora-partnerships-banner.png'],'base64');payload.files=[new AttachmentBuilder(source,{name:'novora-partnerships-banner.png'})];payload.embeds[0].setImage('attachment://novora-partnerships-banner.png');}
+    let message=null;
+    if(cfg.panelMessageId){try{const existing=await ch.messages.fetch(cfg.panelMessageId);message=await existing.edit(payload)}catch{}}
+    if(!message)message=await ch.send(payload);
+    cfg.panelMessageId=message.id;await store.persist();
+    return interaction.editReply('Partnerschafts-Panel ist aktiv in <#'+ch.id+'>.');
+  }
+  async function installForumEmoji(guild){
+    const me=await guild.members.fetchMe();
+    const bits=[PermissionFlagsBits.CreateGuildExpressions,PermissionFlagsBits.ManageGuildExpressions].filter(Boolean);
+    if(!bits.some(bit=>me.permissions.has(bit)))throw Error('Dem Bot fehlt die Berechtigung „Ausdrücke erstellen“ oder „Ausdrücke verwalten“. Alternativ die drei PNGs in den Servereinstellungen hochladen.');
+    const names=[];
+    for(const data of Object.values(TIERS)){
+      const name=data.icon;
+      let existing=guild.emojis.cache.find(e=>e.name===name);
+      if(!existing){
+        const file=path.join(__dirname,'..','assets','emojis',name+'.png');
+        existing=await guild.emojis.create({attachment:file,name,reason:'Novora Partnerschaftsgröße'});
+      }
+      names.push(existing.name);
+    }
+    const cfg=configFor(store,guild.id),forum=cfg&&await guild.channels.fetch(cfg.forumChannelId);
+    if(forum?.type===ChannelType.GuildForum)await ensureForumTags(forum);
+    return names;
+  }
+  async function refreshPanel(guild,cfg){
+    if(!cfg?.panelMessageId)return;
+    const ch=await guild.channels.fetch(cfg.panelChannelId).catch(()=>null);
+    const msg=await ch?.messages?.fetch(cfg.panelMessageId).catch(()=>null);
+    if(msg)await msg.edit({embeds:[panelEmbed(guild,store)],components:panelComponents(guild.id,store),allowedMentions:{parse:[]}});
+  }
+  async function openTicket(interaction,kind){
+    const cfg=cfgOf(interaction);if(!cfg)throw Error('Der Server hat noch kein Partnerschaftssystem eingerichtet.');
+    if(interaction.isModalSubmit()===false)throw Error('Ungültiges Formular');
+    const fields=Object.fromEntries(['server','invite','members','advert','extra'].map(k=>[k,interaction.fields.getTextInputValue(k)]));
+    const form=validateForm(kind,fields);
+    let verifiedInvite=false;
+    // Discord invite may have expired; never reject older cancellation requests based on it.
+    if(form.invite){
+      try{await client.fetchInvite(form.inviteKey);verifiedInvite=true;}
+      catch{throw Error('Die Discord-Einladung ist ungültig oder abgelaufen.')}
+    }
+    const existing=Object.values(tickets(store)).find(t=>t.guildId===interaction.guildId&&t.requesterId===interaction.user.id&&t.kind===kind&&['open','claimed'].includes(t.status));
+    if(existing)throw Error('Du hast bereits ein offenes Ticket dieser Art: <#'+existing.channelId+'>');
+    if(kind!=='apply'){
+      const record=Object.values(partners(store)).find(r=>r.guildId===interaction.guildId&&r.requesterId===interaction.user.id&&r.status==='active'&&r.server.toLowerCase()===form.server.toLowerCase());
+      if(!record)throw Error('Für diesen Namen ist keine aktive Partnerschaft unter deinem Discord-Konto gespeichert. Kontaktiere das Team.');
+    }
+    const lockKey=interaction.guildId+':'+interaction.user.id+':'+kind;
+    if(busy.has(lockKey))throw Error('Dein Formular wird bereits verarbeitet.');
+    busy.add(lockKey);
+    try{
+      const roleId=cfg.teamRoleId,botId=client.user.id,requesterId=interaction.user.id;
+      const topic='Novora Partnerschaft | '+kind+' | '+requesterId;
+      const channel=await interaction.guild.channels.create({name:`${ACTIONS[kind].prefix}-${nameSlug(form.server)}`.slice(0,90),type:ChannelType.GuildText,parent:cfg.ticketCategoryId,topic,
+        permissionOverwrites:[
+          {id:interaction.guildId,deny:[PermissionFlagsBits.ViewChannel]},
+          {id:requesterId,allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory,PermissionFlagsBits.AttachFiles]},
+          {id:roleId,allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory]},
+          {id:botId,allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ManageChannels,PermissionFlagsBits.ReadMessageHistory,PermissionFlagsBits.EmbedLinks]}
+        ],reason:'Novora Partnerships: privates Ticket für '+requesterId});
+      const prior=kind==='apply'?null:Object.values(partners(store)).find(r=>r.guildId===interaction.guildId&&r.requesterId===requesterId&&r.status==='active'&&r.server.toLowerCase()===form.server.toLowerCase());
+      const effective=prior?formForChange(prior,form):form;
+      const tier=tierFor(effective.members);
+      const analysis=kind==='cancel'?null:scorePartnership(effective,{inviteVerified:verifiedInvite||!!prior?.inviteVerified});
+      const ticket={id:randomUUID().replace(/-/g,'').slice(0,20),guildId:interaction.guildId,channelId:channel.id,requesterId,kind,form,status:'open',claimedBy:null,createdAt:Date.now(),updatedAt:Date.now(),forumThreadId:null,tier,analysis,inviteVerified:verifiedInvite||!!prior?.inviteVerified};
+      tickets(store)[ticket.id]=ticket;
+      try{await store.persist();const msg=await channel.send({content:`<@${requesterId}> · <@&${roleId}>`,embeds:[ticketEmbed(interaction.guild,ticket,store)],components:controls(ticket),allowedMentions:{parse:[],users:[requesterId],roles:[roleId]}});ticket.headerMessageId=msg.id;await store.persist();}
+      catch(e){delete tickets(store)[ticket.id];await store.persist().catch(()=>{});await channel.delete().catch(()=>{});throw e;}
+      await log(interaction.guild,cfg,ticket,'erstellt',requesterId);
+      return channel;
+    }finally{busy.delete(lockKey)}
+  }
+  async function safeRole(guild,roleId,userId,add){
+    const member=await guild.members.fetch(userId),bot=await guild.members.fetchMe(),role=await guild.roles.fetch(roleId);
+    if(!role||role.managed||role.id===guild.id||role.position>=bot.roles.highest.position||!bot.permissions.has(PermissionFlagsBits.ManageRoles))return 'Partnerrolle konnte wegen Rollenrechten nicht '+(add?'vergeben':'entfernt')+' werden.';
+    if(add)await member.roles.add(role,'Novora Partnerschaft genehmigt');else await member.roles.remove(role,'Novora Partnerschaft beendet');
+    return '';
+  }
+  async function updateNickname(guild,ticket,record,add){
+    const bot=await guild.members.fetchMe();if(!bot.permissions.has(PermissionFlagsBits.ManageNicknames))return;
+    const member=await guild.members.fetch(ticket.requesterId).catch(()=>null);
+    if(!member||member.id===guild.ownerId||member.roles.highest.position>=bot.roles.highest.position)return;
+    const current=member.nickname||member.user.globalName||member.user.username;
+    const suffix=' · Partner';
+    if(add){if(current.endsWith(suffix))return; record.previousNickname=member.nickname;await member.setNickname((current.slice(0,32-suffix.length).trimEnd()+suffix).slice(0,32),'Novora Partnerschaft').catch(()=>{});}
+    else if(current.endsWith(suffix))await member.setNickname(record.previousNickname??null,'Novora Partnerschaft beendet').catch(()=>{});
+  }
+  async function approval(guild,cfg,ticket){
+    const identity=ticket.guildId+':'+ticket.requesterId+':'+ticket.form.server.toLowerCase();
+    const entries=partners(store);
+    let record=entries[identity];
+    if(ticket.kind==='apply'){
+      if(record?.status==='active')throw Error('Für diesen Antragsteller und Server besteht bereits eine aktive Partnerschaft.');
+      const forum=await guild.channels.fetch(cfg.forumChannelId);
+      if(!forum||forum.type!==ChannelType.GuildForum)throw Error('Das Partnerschaftsforum wurde nicht gefunden.');
+      const tags=await ensureForumTags(forum);
+      const entry=forumContent(ticket,cfg,store);
+      const thread=await forum.threads.create({name:own(ticket.form.server).slice(0,90),message:entry,appliedTags:forumTierTag(tags,ticket.tier),reason:'Novora Partnerschaft angenommen'});
+      ticket.forumThreadId=thread.id;
+      record={id:identity,guildId:ticket.guildId,requesterId:ticket.requesterId,server:ticket.form.server,forumThreadId:thread.id,createdAt:Date.now(),status:'active',...ticket.form,tier:ticket.tier,analysis:ticket.analysis,inviteVerified:ticket.inviteVerified,claimedBy:ticket.claimedBy};
+      entries[identity]=record;await store.persist();
+      const warning=await safeRole(guild,cfg.partnerRoleId,ticket.requesterId,true).catch(e=>'Partnerrolle nicht gesetzt: '+e.message);
+      await updateNickname(guild,ticket,record,true);await store.persist();
+      return warning||'Forumbeitrag erstellt und Partnerrolle zugewiesen.';
+    }
+    if(!record||record.status!=='active')throw Error('Aktive Partnerschaft für diesen Antragsteller und Server nicht gefunden.');
+    const thread=await guild.channels.fetch(record.forumThreadId);
+    if(ticket.kind==='change'){
+      if(!thread?.send)throw Error('Forumbeitrag nicht mehr vorhanden.');
+      const merged=formForChange(record,ticket.form),tier=tierFor(merged.members);
+      const current={...ticket,form:merged,tier};
+      const payload=forumContent(current,{...cfg,pingRoleId:null},store);
+      // Replace the original starter, not just append outdated details.
+      const starter=await thread.fetchStarterMessage().catch(()=>null);
+      if(!starter?.edit)throw Error('Der Forum-Startbeitrag ist nicht bearbeitbar; Änderungen wurden nicht übernommen.');
+      await starter.edit({content:payload.content,allowedMentions:{parse:[]}});
+      const forum=await guild.channels.fetch(cfg.forumChannelId);
+      const tags=forum?.type===ChannelType.GuildForum?await ensureForumTags(forum):{};
+      if(thread.setAppliedTags && forumTierTag(tags,tier).length){
+        const oldTierNames=new Set(Object.values(TIERS).map(t=>t.forumTag));
+        const removed=new Set((forum.availableTags||[]).filter(t=>oldTierNames.has(t.name)).map(t=>t.id));
+        const remaining=(thread.appliedTags||[]).filter(t=>!removed.has(t));
+        await thread.setAppliedTags([...remaining,...forumTierTag(tags,tier)].slice(0,5),'Novora Partnergröße aktualisiert');
+      }
+      record.invite=merged.invite;record.advert=merged.advert;record.extra=merged.extra;record.claimedBy=ticket.claimedBy;
+      record.members=merged.members;record.tier=tier;record.updatedAt=Date.now();
+      record.analysis=scorePartnership(merged,{inviteVerified:ticket.inviteVerified||record.inviteVerified});
+      record.inviteVerified=!!(ticket.inviteVerified||record.inviteVerified);
+      ticket.form=merged;ticket.tier=tier;ticket.analysis=record.analysis;
+      await store.persist();
+      return 'Forum-Startbeitrag, Mitgliederzahl, Größen-Tag und Analyse aktualisiert.';
+    }
+    if(ticket.kind==='cancel'){
+      if(thread?.send)await thread.send({content:'**Partnerschaft beendet.** Dieser Beitrag wird archiviert.',allowedMentions:{parse:[]}}).catch(()=>{});
+      if(thread?.setArchived)await thread.setArchived(true,'Novora Partnerschaft beendet').catch(()=>{});
+      const other=Object.values(entries).some(r=>r!==record&&r.guildId===ticket.guildId&&r.requesterId===ticket.requesterId&&r.status==='active');
+      let warning='';
+      if(!other){warning=await safeRole(guild,cfg.partnerRoleId,ticket.requesterId,false).catch(e=>'Partnerrolle nicht entfernt: '+e.message);await updateNickname(guild,ticket,record,false)}
+      record.status='ended';record.endedAt=Date.now();await store.persist();
+      return warning||'Partnerschaft archiviert und Partnerrechte überprüft.';
+    }
+    throw Error('Ungültiger Vorgang');
+  }
+  async function refreshCounts(guildId=null,limit=30){
+    const result={checked:0,updated:0,errors:0};
+    const items=Object.values(partners(store)).filter(p=>p.status==='active'&&p.invite&&(!guildId||p.guildId===guildId)).slice(0,Math.min(100,Math.max(1,limit)));
+    const touched=new Set();
+    for(const record of items){
+      try{
+        const guild=client.guilds.cache.get(record.guildId),cfg=guild&&configFor(store,record.guildId);
+        if(!cfg)continue;
+        const check=await client.fetchInvite(record.invite,{withCounts:true});
+        result.checked++;
+        const count=check?.approximateMemberCount;
+        if(!Number.isSafeInteger(count)||count<1||count===record.members)continue;
+        const tier=tierFor(count);
+        const thread=await guild.channels.fetch(record.forumThreadId);
+        const forum=await guild.channels.fetch(cfg.forumChannelId);
+        if(!thread?.fetchStarterMessage||forum?.type!==ChannelType.GuildForum)throw Error('Forumbeitrag fehlt');
+        const message=await thread.fetchStarterMessage();
+        const changed={...record,members:count,tier};
+        const payload=forumContent({form:changed,requesterId:record.requesterId,claimedBy:record.claimedBy||record.requesterId,tier}, {...cfg,pingRoleId:null},store);
+        await message.edit({content:payload.content,allowedMentions:{parse:[]}});
+        const tags=await ensureForumTags(forum);
+        if(thread.setAppliedTags&&forumTierTag(tags,tier).length){
+          const categoryIds=new Set((forum.availableTags||[]).filter(t=>Object.values(TIERS).some(x=>x.forumTag===t.name)).map(t=>t.id));
+          const other=(thread.appliedTags||[]).filter(id=>!categoryIds.has(id));
+          await thread.setAppliedTags([...other,...forumTierTag(tags,tier)].slice(0,5),'Automatischer Größenabgleich');
+        }
+        record.members=count;record.tier=tier;record.updatedAt=Date.now();record.lastCountCheck=Date.now();
+        record.analysis=scorePartnership(record,{inviteVerified:true});record.inviteVerified=true;
+        await store.persist();result.updated++;touched.add(record.guildId);
+      }catch(e){result.errors++;console.warn('Partnerzahlen-Abgleich:',String(e.message).slice(0,120));}
+    }
+    for(const gid of touched){const guild=client.guilds.cache.get(gid);if(guild)await refreshPanel(guild,configFor(store,gid)).catch(()=>{});}
+    return result;
+  }
+  async function ticketAction(interaction,action,ticketId){
+    if(!interaction.inGuild())throw Error('Nur im Discord-Server möglich.');
+    const cfg=cfgOf(interaction),ticket=tickets(store)[ticketId];
+    if(!cfg||!ticket||ticket.guildId!==interaction.guildId||interaction.channelId!==ticket.channelId)throw Error('Dieses Ticket existiert hier nicht.');
+    const member=await interaction.guild.members.fetch(interaction.user.id);
+    if(!assertStaff(member,cfg,interaction.guild))throw Error('Nur das zuständige Server-Team darf Tickets bearbeiten.');
+    if(busy.has(ticketId))throw Error('Eine andere Aktion wird gerade bearbeitet.');
+    busy.add(ticketId);
+    try{
+      let actionNote='';
+      if(ticket.status==='closed')throw Error('Ticket bereits geschlossen.');
+      if(action==='analyze'){
+        if(ticket.status!=='open'&&ticket.status!=='claimed')throw Error('Dieses Ticket ist bereits entschieden.');
+        // Review only replies written by the applicant in this private ticket; never archive raw chat text.
+        const recent=await interaction.channel.messages.fetch({limit:50}).catch(()=>new Map());
+        const notes=[...recent.values()].filter(m=>m.author?.id===ticket.requesterId&&!m.author?.bot).map(m=>String(m.content||'')).join('\n').slice(0,6000);
+        ticket.analysis=scorePartnership(ticket.form,{inviteVerified:ticket.inviteVerified,applicantNotes:notes});
+        ticket.updatedAt=Date.now();await store.persist();
+        const msg=await interaction.channel.messages.fetch(ticket.headerMessageId).catch(()=>null);
+        if(msg)await msg.edit({embeds:[ticketEmbed(interaction.guild,ticket,store)],components:controls(ticket),allowedMentions:{parse:[]}});
+        return 'Analyse aktualisiert: '+ticket.analysis.score+'/100 ('+ticket.analysis.level+'). Nur eine Entscheidungshilfe.';
+      }
+      if(action==='claim'){
+        if(ticket.status!=='open')throw Error('Dieses Ticket wurde bereits übernommen.');
+        ticket.claimedBy=member.id;ticket.status='claimed';
+      }else if(action==='approve'||action==='reject'){
+        if(ticket.status!=='claimed')throw Error('Bitte das Ticket zunächst übernehmen.');
+        if(ticket.claimedBy!==member.id&&!member.permissions.has(PermissionFlagsBits.Administrator)&&interaction.guild.ownerId!==member.id)throw Error('Nur die übernehmende Person oder ein Administrator kann entscheiden.');
+        if(action==='approve'){actionNote=await approval(interaction.guild,cfg,ticket);ticket.status='approved';}
+        else ticket.status='rejected';
+      }else if(action==='close'){
+        if(!['open','claimed','approved','rejected'].includes(ticket.status))throw Error('Ticket nicht schließbar');
+        ticket.previousStatus=ticket.status;ticket.status='closed';
+      }else throw Error('Unbekannte Aktion');
+      ticket.updatedAt=Date.now();ticket.lastActorId=member.id;
+      await store.persist();
+      // Update the persistent ticket header rather than relying on the clicked stale button message.
+      if(action==='approve'||action==='close')await refreshPanel(interaction.guild,cfg).catch(()=>{});
+      let msg=await interaction.channel.messages.fetch(ticket.headerMessageId).catch(()=>null);
+      if(msg)await msg.edit({embeds:[ticketEmbed(interaction.guild,ticket,store)],components:controls(ticket),allowedMentions:{parse:[]}});
+      await log(interaction.guild,cfg,ticket,action,member.id,actionNote);
+      if(action==='close'){
+        await interaction.channel.permissionOverwrites.edit(ticket.requesterId,{ViewChannel:false}).catch(()=>{});
+        await interaction.channel.setName('archiv-'+interaction.channel.name.slice(0,80)).catch(()=>{});
+      }
+      return `Aktion **${action==='claim'?'Übernommen':action==='approve'?'Angenommen':action==='reject'?'Abgelehnt':'Geschlossen'}** ausgeführt.${actionNote?' '+actionNote:''}`;
+    }finally{busy.delete(ticketId)}
+  }
+  async function onInteraction(interaction){
+    try{
+      if(interaction.isChatInputCommand()){
+        if(!commands.some(c=>c.name===interaction.commandName))return false;
+        if(!interaction.inGuild())return interaction.reply({content:'Nur auf einem Discord-Server verfügbar.',flags:MessageFlags.Ephemeral}),true;
+        if(interaction.commandName==='partnerschaft-setup')await setup(interaction);
+        if(interaction.commandName==='partnerschaft-panel')await sendPanel(interaction);
+        if(interaction.commandName==='partnerschaft-emojis'){
+          if(!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator))return interaction.reply({content:'Nur Server-Administratoren.',flags:MessageFlags.Ephemeral}),true;
+          await interaction.deferReply({flags:MessageFlags.Ephemeral});
+          const names=await installForumEmoji(interaction.guild);
+          await interaction.editReply('Drei flache Server-Emojis für Forum-Tags eingerichtet: '+names.join(', '));
+          return true;
+        }
+        if(interaction.commandName==='partnerschaft-sync'){
+          if(!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator))return interaction.reply({content:'Nur Server-Administratoren.',flags:MessageFlags.Ephemeral}),true;
+          await interaction.deferReply({flags:MessageFlags.Ephemeral});
+          const r=await refreshCounts(interaction.guildId,50);
+          await interaction.editReply(`Mitgliederzahlen geprüft: ${r.checked} · Aktualisiert: ${r.updated} · Fehler: ${r.errors}. Die Werte von Discord sind ungefähre Mitgliederzahlen.`);
+          return true;
+        }
+        if(interaction.commandName==='partnerschaft-statistik'){
+          const cfg=cfgOf(interaction);
+          const member=await interaction.guild.members.fetch(interaction.user.id);
+          if(!cfg||!assertStaff(member,cfg,interaction.guild))return interaction.reply({content:'Nur das Partnerschaftsteam.',flags:MessageFlags.Ephemeral}),true;
+          const stats=tierCount(partners(store),interaction.guildId);
+          const open=Object.values(tickets(store)).filter(t=>t.guildId===interaction.guildId&&['open','claimed'].includes(t.status));
+          return interaction.reply({content:`**Novora · Partnerschaftsstatistik**\nAktiv: **${stats.active}**\n${tagIcon(store,'small')}Klein: **${stats.small}**\n${tagIcon(store,'medium')}Mittel: **${stats.medium}**\n${tagIcon(store,'large')}Groß: **${stats.large}**\nOffene Tickets: **${open.length}**\nAutomatische Bewerbungswerte sind nur Entscheidungshilfen.`,flags:MessageFlags.Ephemeral}),true;
+        }
+        if(interaction.commandName==='partnerschaft-status'){
+          if(!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator))return interaction.reply({content:'Nur Server-Administratoren.',flags:MessageFlags.Ephemeral}),true;
+          const cfg=cfgOf(interaction);
+          await interaction.reply({content:cfg?`**Partnerschaften eingerichtet**\nPanel: <#${cfg.panelChannelId}>\nTicket-Kategorie: <#${cfg.ticketCategoryId}>\nForum: <#${cfg.forumChannelId}>\nTeam: <@&${cfg.teamRoleId}>\nPartnerrolle: <@&${cfg.partnerRoleId}>\nOffen: ${Object.values(tickets(store)).filter(t=>t.guildId===interaction.guildId&&['open','claimed'].includes(t.status)).length}`:'Noch nicht eingerichtet. Nutze `/partnerschaft-setup`.',flags:MessageFlags.Ephemeral,allowedMentions:{parse:[]}});
+        }
+        return true;
+      }
+      if(!(interaction.isStringSelectMenu()||interaction.isButton()||interaction.isModalSubmit())||!interaction.customId?.startsWith('nvp:'))return false;
+      const parts=interaction.customId.split(':');
+      if(!interaction.inGuild())throw Error('Nur im Server verfügbar');
+      if(parts[1]==='select'){
+        if(parts[2]!==interaction.guildId)throw Error('Panel gehört zu einem anderen Server.');
+        const kind=interaction.values[0];if(!ACTIONS[kind])throw Error('Unbekannte Ticketart');
+        await interaction.showModal(buildModal(interaction.guildId,kind));return true;
+      }
+      if(parts[1]==='form'){
+        if(parts[3]!==interaction.guildId)throw Error('Falscher Server');
+        await interaction.deferReply({flags:MessageFlags.Ephemeral});
+        const ch=await openTicket(interaction,parts[2]);
+        await interaction.editReply('Dein privates Partnerschaftsticket wurde geöffnet: <#'+ch.id+'>');
+        return true;
+      }
+      if(['claim','approve','reject','close','analyze'].includes(parts[1])){
+        await interaction.deferReply({flags:MessageFlags.Ephemeral});
+        const text=await ticketAction(interaction,parts[1],parts[2]);
+        await interaction.editReply(text);return true;
+      }
+      throw Error('Unbekannte Aktion');
+    }catch(e){
+      const msg='Partnerschaften: '+String(e.message||'Unbekannter Fehler').slice(0,250);
+      if(interaction.deferred||interaction.replied)await interaction.editReply({content:msg}).catch(()=>{});
+      else await interaction.reply({content:msg,flags:MessageFlags.Ephemeral}).catch(()=>{});
+      return true;
+    }
+  }
+  return {commands,onInteraction,settingsPayload,refreshCounts,configFor:gid=>configFor(store,gid)};
+}
+module.exports={ACTIONS,own,inviteCode,validateForm,settingsPayload,assertStaff,buildModal,forumContent,ensureForumTags,formForChange,makePartnerships};

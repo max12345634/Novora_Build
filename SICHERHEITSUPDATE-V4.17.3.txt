@@ -1,0 +1,43 @@
+NOVORA VERIFY V4.17.3 – DAUERHAFTE UPDATE-WIEDERHERSTELLUNG
+23. Oktober 2026
+
+NEU:
+- Rollback-Sicherungen liegen in data/update-backups/ statt im flüchtigen
+  System-Temp-Verzeichnis (oder im durch DATA_DIR konfigurierten Datenordner).
+- Alle alten Dateien werden gesichert, BEVOR die erste Programmdatei ersetzt wird.
+- Ein atomar geschriebenes data/update-recovery.json hält den Backup-Pfad und
+  die betroffenen Dateien fest, solange ein Update noch nicht bestätigt ist.
+- Nach einem Prozess-/Container-Neustart wird bei offenem Journal oder
+  manualRecoveryRequired=true kein Bot-Worker gestartet (Fail-Closed).
+- Erfolgreiche Installation oder erfolgreicher Rollback räumen Journal und
+  Sicherung auf. Bei fehlgeschlagener Wiederherstellung bleiben sie erhalten.
+- .env, data/, Zugangsdaten und private Signierschlüssel sind NICHT in der ZIP.
+
+VORAUSSETZUNG:
+Das Bot-Datenverzeichnis muss auf BotHosting wirklich persistent gespeichert
+werden. Ein Ordner namens data/ allein garantiert keine Persistenz bei einer
+kompletten Neuinstallation oder einem Host-Reset. data/ immer extern sichern.
+
+MANUELLE WIEDERHERSTELLUNG (NUR BEI KRITISCHEM FEHLER):
+1. Bot STOPPEN; data/ vollständig extern sichern, insbesondere
+   update-recovery.json, update-status.json und update-backups/.
+2. Vorhandenes Journal und Sicherung prüfen; darin stehen die zuvor
+   vorhandenen Programmdateien. Fehlende Dateien laut Journal entfernen.
+3. Ursprüngliche Programmdateien aus der Sicherung wiederherstellen.
+4. Nach erfolgreicher Prüfung update-recovery.json entfernen und
+   manualRecoveryRequired in update-status.json auf false setzen.
+5. Erst danach Bot neu starten. Im Zweifel vor Schritt 3 Support hinzuziehen.
+
+SICHERHEIT:
+Ed25519-Signatur, SHA-256-Validierung, HTTPS-Host-Pinning, Datei-Whitelist,
+Staging-Prüfung, Syntaxprüfung und Rollback wurden nicht abgeschaltet.
+Kein unsigniertes Release veröffentlicht. Für automatische Updates fehlen
+weiterhin der passende private Signierschlüssel, Release-Veröffentlichung
+und ein Live-Test auf BotHosting.
+
+TESTS:
+- npm test: 271 bestanden, 1 übersprungen, 0 fehlgeschlagen.
+- npm run check: erfolgreich.
+- Kein produktiver BotHosting-Test. Keine Live-Änderung an den Websites.
+- V4.17.3 ist wegen Änderungen an updater.js und supervisor.js zunächst
+  manuell zu installieren; vorhandene .env und data/ müssen erhalten bleiben.

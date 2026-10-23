@@ -1,0 +1,27 @@
+NOVORA VERIFY V4.9 – QUALITÄTSBERICHT (23.10.2026)
+
+Basis: NovoraVerify_V4.8_PREMIUM_VOLLVERSION.zip aus der ChatGPT-Dateibibliothek.
+Schwerpunkt: Voice-Warteraum, Join-/Leave-Konfiguration, Fehlertoleranz.
+
+TATSÄCHLICHE CODEÄNDERUNGEN
+1) src/member-greetings.js: Fehlgeschlagene Speicherung der Kanal-IDs setzt vorherige Einstellungen im Arbeitsspeicher zurück; unzulässige Ereignistypen und unvollständige Member-Objekte werden abgewiesen.
+2) src/voice-audio.js: Gleichzeitige Beitritte werden pro Server serialisiert und nutzen eine gemeinsame Startoperation.
+3) src/voice-audio.js: Voice-Starts werden bei Verlassen des leeren Warteraums oder Shutdown während des Starts abgebrochen.
+4) src/voice-audio.js: Transiente Join-/Audio-Fehler sperren den Server nicht dauerhaft; standardmäßig 30 Sekunden Backoff.
+5) src/voice-audio.js: Connection-Cleanup nach teilweise fehlgeschlagenem Start, Audio-Player-Fehler und Idle-Playback-Fehler werden sicher behandelt; veraltete Events schließen keine neue Sitzung.
+6) src/voice-audio.js: Personalisierte OGG-Dateien werden zunächst in zufällige temporäre OGG-Dateien gerendert und erst nach Erfolg umbenannt; unvollständige Dateien werden bereinigt.
+7) tests/v49-voice-greetings-reliability.test.js: zwölf neue Regressionstests.
+8) Versionsnummer, Updateverlauf und Installationsdokumentation aktualisiert.
+
+TESTERGEBNISSE
+V4.8 Basis: 201 Tests, 200 bestanden, 0 fehlgeschlagen, 1 übersprungen.
+V4.9: 213 Tests, 212 bestanden, 0 fehlgeschlagen, 1 übersprungen.
+JavaScript-Syntaxprüfung: npm run check erfolgreich.
+ZIP-Integrität und frischer Entpacktest: werden im Releaseprozess separat geprüft.
+
+BEKANNTE GRENZEN
+- Voice- und Member-Tests verwenden Discord-Mocks; kein Discord-/BotHosting-Livetest.
+- Voice-Funktionen benötigen Connect/Speak-Berechtigungen und die gebündelten OGG-Dateien.
+- Join-/Leave-Ereignisse benötigen ENABLE_MEMBER_EVENTS=true und den privilegierten Discord Server Members Intent.
+- Temporäre Persistenzfehler können je nach tatsächlicher Datenträger-Semantik nicht garantiert vollständig atomar zurückgerollt werden; der vorherige In-Memory-Zustand wird restauriert.
+- Kein unsigniertes OTA-Update veröffentlicht; .env, data/, node_modules/ und Signierschlüssel nicht enthalten.
