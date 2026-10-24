@@ -25,6 +25,10 @@ function localRelease(rootDir=root){
   delete require.cache[require.resolve(labelFile)];
   const label=String(require(labelFile).VERSION||'');
   if(label!==version)throw Error('package.json und src/version-label.js haben unterschiedliche Versionen');
+  const lock=JSON.parse(fs.readFileSync(path.join(rootDir,'package-lock.json'),'utf8'));
+  const lockVersions=[lock.version,lock.packages&&lock.packages['']&&lock.packages[''].version];
+  if(lockVersions.some(value=>String(value||'')!==version))
+    throw Error('package-lock.json stimmt nicht mit der Release-Version überein');
   const changelog=path.join(rootDir,'release-notes',version+'.md');
   if(!fs.existsSync(changelog))throw Error('Release-Notizen fehlen: release-notes/'+version+'.md');
   const notes=fs.readFileSync(changelog,'utf8').trim();
