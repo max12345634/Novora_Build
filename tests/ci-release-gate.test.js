@@ -21,12 +21,16 @@ test('CI release gate requires one matching version and bounded release notes',(
   try{
     fs.mkdirSync(path.join(dir,'src'));fs.mkdirSync(path.join(dir,'release-notes'));
     fs.writeFileSync(path.join(dir,'package.json'),JSON.stringify({version:'4.18.3'}));
+    fs.writeFileSync(path.join(dir,'package-lock.json'),JSON.stringify({version:'4.18.3',packages:{'':{version:'4.18.3'}}}));
     fs.writeFileSync(path.join(dir,'src','version-label.js'),"module.exports={VERSION:'4.18.3'};\n");
     fs.writeFileSync(path.join(dir,'release-notes','4.18.3.md'),'Sichere GitHub-Veröffentlichung.\n');
     const value=gate.localRelease(dir);
     assert.equal(value.version,'4.18.3');
     fs.writeFileSync(path.join(dir,'src','version-label.js'),"module.exports={VERSION:'4.18.2'};\n");
     assert.throws(()=>gate.localRelease(dir),/unterschiedliche Versionen/);
+    fs.writeFileSync(path.join(dir,'src','version-label.js'),"module.exports={VERSION:'4.18.3'};\n");
+    fs.writeFileSync(path.join(dir,'package-lock.json'),JSON.stringify({version:'4.18.2',packages:{'':{version:'4.18.2'}}}));
+    assert.throws(()=>gate.localRelease(dir),/package-lock\.json/);
   }finally{fs.rmSync(dir,{recursive:true,force:true})}
 });
 
