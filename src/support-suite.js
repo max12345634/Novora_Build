@@ -248,7 +248,7 @@ function makeSupportSuite({client,store,publicUrl}){
     // intent. Never infer a substantive staff answer from an empty payload.
     if(!message?.guild||message.author?.bot||message.system||!message.author?.id)return false;
     const text=String(message.content||'').trim();
-    if(text.length<12||!/[\\p{L}\\p{N}]/u.test(text)||/^[!/.]/.test(text))return false;
+    if(text.length<12||!/[\p{L}\p{N}]/u.test(text)||/^[!/.]/.test(text))return false;
     const ticket=tickets().find(t=>t.guildId===message.guild.id&&t.channelId===message.channelId&&t.status==='open');
     if(!ticket||ticket.userId===message.author.id)return false;
     const cfg=config(message.guild.id).tickets;
