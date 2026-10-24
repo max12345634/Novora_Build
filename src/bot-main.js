@@ -66,6 +66,7 @@ const supportSuite=makeSupportSuite({client,store:{...store,dataDir:env.dataDir}
 const rpSuite=makeRpSuite({store});
 const standardSuite=makeStandardSuite({store});
 client.on(Events.MessageCreate,m=>{void standardSuite.onMessage(m)});
+client.on(Events.MessageCreate,message=>{void supportSuite.onTicketMessage(message).catch(err=>console.warn('Ticket-Auto-Claim:',err.message));});
 const communitySuite=makeCommunitySuite({client,store:{...store,dataDir:env.dataDir},publicUrl:env.publicUrl});
 const memberGreetings=makeMemberGreetings({store});
 client.on(Events.MessageCreate,message=>{if(!message.guildId&&!message.author?.bot)void communitySuite.onDMMessage(message).catch(e=>console.warn('Team-Bewerbung DM:',e.message));});
