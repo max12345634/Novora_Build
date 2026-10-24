@@ -6,18 +6,15 @@ const path = require('node:path');
 const os = require('node:os');
 const {execFileSync} = require('node:child_process');
 const {compareVersions} = require('./version');
-const PINNED_HOST = 'novora-verify-control-center-ae02zt.v2.appdeploy.ai';
+const {PUBLIC_KEY, RELEASE_BASE_URL} = require('./release-trust');
+const PINNED_HOST = new URL(RELEASE_BASE_URL).hostname;
 const MAX_FILES = 300, MAX_FILE_BYTES = 4 * 1024 * 1024, MAX_TOTAL_BYTES = 40 * 1024 * 1024;
-const PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAyBh3ZEIKdfR7Fu9Dmmdi5NDQKQJqWIMVkU+q8iW7Yb4=
------END PUBLIC KEY-----
-`;
 function safePath(p) {
   if(typeof p!=='string')return false;
   // Constrained allowlist. Never touch secrets, installed packages, local data or
   // the trust roots/supervisor used to validate the next release.
   if(/^src\/[a-zA-Z0-9_-]+\.js$/.test(p))
-    return !['src/supervisor.js','src/updater.js','src/version.js'].includes(p);
+    return !['src/supervisor.js','src/updater.js','src/version.js','src/release-trust.js'].includes(p);
   if(/^assets\/banners\/novora-[a-zA-Z0-9_-]+\.png$/.test(p))return true;
   if(/^assets\/emojis\/nv_[a-zA-Z0-9_-]+\.png$/.test(p))return true;
   if(/^assets\/audio\/(?:waiting-music|welcome-generic)\.ogg$/.test(p))return true;
@@ -39,23 +36,33 @@ function checkFileFormat(file,bytes){
 function validateManifest(manifest) {
   if (!manifest || manifest.schema!==1 || !/^\d+\.\d+\.\d+$/.test(manifest.version||'')) throw Error('Ungültige Release-Version');
   if (!Array.isArray(manifest.files) || manifest.files.length===0 || manifest.files.length>MAX_FILES) throw Error('Ungültige Dateiliste');
-  const seen=new Set();let total=0;
+  const seen=new Set(),urls=new Set();let total=0;
   for (const f of manifest.files) {
     if (!safePath(f.path) || seen.has(f.path) || !Number.isInteger(f.bytes) || f.bytes<1 || f.bytes>MAX_FILE_BYTES
-      || !/^[a-f0-9]{64}$/.test(f.sha256||'') || !validReleaseUrl(f.url)) throw Error('Unsichere Release-Datei');
-    seen.add(f.path);total+=f.bytes;if(total>MAX_TOTAL_BYTES)throw Error('Release überschreitet das sichere Gesamtlimit');
+      || !/^[a-f0-9]{64}$/.test(f.sha256||'') || !validReleaseUrl(f.url) || urls.has(f.url)) throw Error('Unsichere Release-Datei');
+    seen.add(f.path);urls.add(f.url);total+=f.bytes;if(total>MAX_TOTAL_BYTES)throw Error('Release überschreitet das sichere Gesamtlimit');
   }
   if(!/^[a-zA-Z0-9+/=]{80,120}$/.test(manifest.signature||''))throw Error('Release-Signatur fehlt');
   const payload={schema:1,version:manifest.version,files:manifest.files};
   if(!crypto.verify(null,Buffer.from(JSON.stringify(payload)),PUBLIC_KEY,Buffer.from(manifest.signature,'base64')))throw Error('Release-Signatur ungültig');
   return payload;
 }
-async function fetchText(url, maxBytes) {
+function httpError(status){
+  const info=status===404?['FEED_NOT_CONFIGURED','Release-Feed nicht eingerichtet (HTTP 404)']:
+    status===403?['ACCESS_DENIED','Zugriff auf Release-Dienst verweigert (HTTP 403)']:
+    status>=500?['SERVER_ERROR','Release-Dienst meldet Serverfehler (HTTP '+status+')']:
+    ['HTTP_ERROR','HTTP '+status];
+  const err=new Error(info[1]);err.code=info[0];err.status=status;return err;
+}
+async function fetchText(url, maxBytes, options={}) {
   const controller = new AbortController();
   const timer=setTimeout(()=>controller.abort(),16000);
   try {
     const result=await fetch(url,{signal:controller.signal,redirect:'error',headers:{'Accept':'application/json, text/plain'}});
-    if(!result.ok)throw Error('HTTP '+result.status);
+    if(result.status===204&&options.allowEmpty)return null;
+    if(!result.ok)throw httpError(result.status);
+    const contentType=String(result.headers.get('content-type')||'').split(';')[0].trim().toLowerCase();
+    if(options.contentTypes?.length&&!options.contentTypes.includes(contentType))throw Error('Unerwarteter Content-Type: '+(contentType||'fehlt'));
     const declared=Number(result.headers.get('content-length')||'0');
     if(Number.isFinite(declared)&&declared>maxBytes)throw Error('Datei zu groß');
     if(!result.body)throw Error('Keine HTTP-Antwortdaten');
@@ -85,21 +92,25 @@ function saveStatus(root,update) {
   fs.writeFileSync(tmp,JSON.stringify(next,null,2),{mode:0o600});fs.renameSync(tmp,file);
 }
 function releaseOrigin() {
-  const candidate=process.env.WEBSITE_URL||'https://'+PINNED_HOST;
+  const candidate=process.env.NOVORA_RELEASE_BASE_URL||RELEASE_BASE_URL;
   const url=new URL(candidate);
-  if(url.protocol!=='https:'||url.hostname!==PINNED_HOST||url.username||url.password||url.port)throw Error('Auto-Update braucht die offizielle Novora-Website');
-  return url.origin;
+  const expected=new URL(RELEASE_BASE_URL);
+  if(url.protocol!=='https:'||url.hostname!==expected.hostname||url.username||url.password||url.port||url.pathname.replace(/\/$/,'')!==expected.pathname)
+    throw Error('Auto-Update braucht den offiziellen Novora-Release-Dienst');
+  return url.toString().replace(/\/$/,'');
 }
 async function checkRelease(root,currentVersion){
   const origin=releaseOrigin();
-  const response=await fetchText(origin+'/novora-releases/latest.json',64000);
-  const manifest=JSON.parse(response.toString('utf8'));
+  const response=await fetchText(origin+'/novora-releases/latest.json',64000,{allowEmpty:true,contentTypes:['application/json','text/plain']});
+  if(response===null)return null;
+  let manifest;try{manifest=JSON.parse(response.toString('utf8'))}catch{throw Error('Release-Feed enthält kein gültiges JSON')}
+  if(manifest?.schema===1&&manifest?.status==='empty')return null;
   validateManifest(manifest);
   if(compareVersions(manifest.version,currentVersion)<=0)return null;
   const dir=fs.mkdtempSync(path.join(os.tmpdir(),'novora-stage-'));
   try {
     for(const f of manifest.files){
-      const buf=await fetchText(origin+f.url,MAX_FILE_BYTES+1);
+      const buf=await fetchText(origin+f.url,MAX_FILE_BYTES+1,{contentTypes:['application/octet-stream','text/plain','image/png','audio/ogg']});
       if(buf.length!==f.bytes||crypto.createHash('sha256').update(buf).digest('hex')!==f.sha256)throw Error('Datei-Prüfsumme stimmt nicht: '+f.path);
       checkFileFormat(f.path,buf);
       const target=path.join(dir,f.path);fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,buf);
@@ -168,10 +179,21 @@ function clearRecoveryJournal(root){
   const journal=recoveryJournal(root);
   fs.rmSync(journal,{force:true});
 }
+function ensureDiskSpace(root,manifest,statfs=fs.statfsSync){
+  if(typeof statfs!=='function')return;
+  const stats=statfs(path.dirname(statusFile(root)));
+  const available=Number(stats.bavail)*Number(stats.bsize);
+  const required=manifest.files.reduce((sum,file)=>{
+    const target=path.join(root,file.path);let old=0;try{old=fs.lstatSync(target).size}catch{}
+    return sum+file.bytes+old;
+  },0)+1024*1024;
+  if(!Number.isFinite(available)||available<required){const error=new Error('Nicht genügend Speicherplatz für Update und Sicherung');error.code='NO_SPACE';throw error}
+}
 function backupAndInstall(root,download){
   verifiedStage(root,download);
   if(pendingRecovery(root))throw Error('Offene Update-Wiederherstellung: '+recoveryJournal(root));
   const {manifest,dir}=download;
+  ensureDiskSpace(root,manifest);
   const backupRoot=path.join(path.dirname(statusFile(root)),'update-backups');
   fs.mkdirSync(backupRoot,{recursive:true,mode:0o700});
   const backup=fs.mkdtempSync(path.join(backupRoot,'novora-backup-'));
@@ -208,7 +230,9 @@ function backupAndInstall(root,download){
       const bytes=fs.readFileSync(temp);
       if(bytes.length!==file.bytes||crypto.createHash('sha256').update(bytes).digest('hex')!==file.sha256)
         throw Error('Update-Prüfsumme vor Installation ungültig: '+file.path);
+      const fd=fs.openSync(temp,'r');try{fs.fsyncSync(fd)}finally{fs.closeSync(fd)}
       fs.renameSync(temp,target);temp=null;
+      const dirfd=fs.openSync(path.dirname(target),'r');try{fs.fsyncSync(dirfd)}finally{fs.closeSync(dirfd)}
     }
   }catch(err){
     if(temp)try{fs.rmSync(temp,{force:true})}catch{}
@@ -248,10 +272,13 @@ function backupAndInstall(root,download){
       fs.rmSync(backup,{recursive:true,force:true});
     },
     finish:()=>{
-      // Only called after the replacement worker reports ready. Clearing the
-      // journal first means an interrupted cleanup leaves a harmless backup.
+      // Only called after the replacement worker reports ready. Keep a bounded,
+      // persistent verified backup so an operator can also roll back later.
+      const completed={schema:1,completedAt:Date.now(),files:records.map(r=>({path:r.relative,existed:r.existed,sha256:r.sha256,size:r.size}))};
+      fs.writeFileSync(path.join(backup,'backup.json'),JSON.stringify(completed,null,2),{mode:0o600,flag:'wx'});
       clearRecoveryJournal(root);
-      fs.rmSync(backup,{recursive:true,force:true});
+      const retained=fs.readdirSync(backupRoot,{withFileTypes:true}).filter(e=>e.isDirectory()&&e.name.startsWith('novora-backup-')).map(e=>path.join(backupRoot,e.name)).sort((a,b)=>fs.statSync(b).mtimeMs-fs.statSync(a).mtimeMs);
+      for(const old of retained.slice(5))fs.rmSync(old,{recursive:true,force:true});
     }
   };
 }
@@ -369,4 +396,4 @@ function rollback(records){
   }
   if(errors.length)throw Error('Rollback fehlgeschlagen ('+errors.length+' Datei(en)): '+errors.join('; ').slice(0,400));
 }
-module.exports={safePath,validReleaseUrl,checkFileFormat,validateManifest,fetchText,releaseOrigin,checkRelease,backupAndInstall,saveStatus,statusFile,recoveryJournal,pendingRecovery,inspectRecovery,recoverPendingUpdate,PINNED_HOST};
+module.exports={safePath,validReleaseUrl,checkFileFormat,validateManifest,fetchText,releaseOrigin,checkRelease,backupAndInstall,ensureDiskSpace,saveStatus,statusFile,recoveryJournal,pendingRecovery,inspectRecovery,recoverPendingUpdate,PINNED_HOST};

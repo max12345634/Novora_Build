@@ -4,7 +4,7 @@ require('dotenv').config();
 const fs=require('node:fs');
 const path=require('node:path');
 const {fork}=require('node:child_process');
-const {checkRelease,backupAndInstall,saveStatus,pendingRecovery,statusFile}=require('./updater');
+const {checkRelease,backupAndInstall,saveStatus,pendingRecovery,recoverPendingUpdate,statusFile}=require('./updater');
 const {compareVersions}=require('./version');
 function start({root=path.resolve(__dirname,'..'),interval=10*60*1000,launch}={}){
   const auto=process.env.NOVORA_AUTO_UPDATE!=='false';
@@ -14,7 +14,13 @@ function start({root=path.resolve(__dirname,'..'),interval=10*60*1000,launch}={}
     if(stopping)return;
     ready=false;lastStart=Date.now();
     child=launch?launch():fork(path.join(root,'src/bot-main.js'),[],{cwd:root,env:process.env,stdio:['inherit','inherit','inherit','ipc']});
-    child.on('message',m=>{if(m&&m.kind==='novora-ready'){ready=true;restarts=0;console.log('Novora Worker: bereit ('+getVersion()+')');}});
+    child.on('message',m=>{
+      if(m&&m.kind==='novora-ready'){
+        const installed=getVersion();
+        if(m.version!==installed){console.error('Worker meldet unerwartete Version '+String(m.version)+' statt '+installed);return;}
+        ready=true;restarts=0;console.log('Novora Worker: bereit ('+installed+')');
+      }
+    });
     child.once('exit',(code,signal)=>{
       child=null;ready=false;
       if(!stopping&&!busy){restarts++;const delay=Math.min(30000,Math.max(2000,restarts*4000));console.error('Bot-Prozess beendet ('+code+'/'+signal+'); Neustart in '+delay/1000+'s');setTimeout(spawn,delay)}
@@ -42,7 +48,7 @@ function start({root=path.resolve(__dirname,'..'),interval=10*60*1000,launch}={}
     let release=null,receipt=null;
     try{
       release=await checkRelease(root,current);
-      if(!release){saveStatus(root,{checking:false,currentVersion:current});return false}
+      if(!release){saveStatus(root,{checking:false,currentVersion:current,feedState:'no_update',error:null});return false}
       console.log('Novora Auto-Update: neue Version '+release.manifest.version+' gefunden, geprüft und heruntergeladen.');
       await stopWorker();
       receipt=backupAndInstall(root,release);
@@ -82,16 +88,27 @@ function start({root=path.resolve(__dirname,'..'),interval=10*60*1000,launch}={}
         }
       }
       else if(!child&&!stopping)spawn();
-      saveStatus(root,{checking:false,error:String(err.message).slice(0,220),lastFailure:Date.now(),currentVersion:getVersion()});
+      saveStatus(root,{checking:false,error:String(err.message).slice(0,220),errorCode:String(err.code||'UPDATE_FAILED').slice(0,50),feedState:err.code==='FEED_NOT_CONFIGURED'?'not_configured':'error',lastFailure:Date.now(),currentVersion:getVersion()});
       return false;
     }finally{if(release?.dir)fs.rmSync(release.dir,{recursive:true,force:true});busy=false;}
   }
   // Never restart into a possibly half-installed version after a container
   // restart. The recovery journal lives in the persistent data directory.
-  const recovery=pendingRecovery(root);
+  let recovery=pendingRecovery(root);
+  if(recovery){
+    try{
+      const restored=recoverPendingUpdate(root,{apply:true,botStopped:true});
+      console.warn('Unterbrochenes Update automatisch aus Sicherung wiederhergestellt ('+restored.files+' Dateien).');
+      recovery=null;
+    }catch(e){
+      const reason='KRITISCH: Automatische Wiederherstellung fehlgeschlagen: '+String(e.message).slice(0,300);
+      console.error(reason);saveStatus(root,{enabled:auto,checking:false,manualRecoveryRequired:true,error:reason,lastFailure:Date.now()});
+      return {poll:async()=>false,shutdown:()=>{},isReady:()=>false};
+    }
+  }
   let previous={};
   try{previous=JSON.parse(fs.readFileSync(statusFile(root),'utf8'))}catch{}
-  if(recovery||previous.manualRecoveryRequired===true){
+  if(previous.manualRecoveryRequired===true){
     const reason='KRITISCH: Manuelle Wiederherstellung erforderlich; Bot-Start gesperrt.'+
       (recovery?.backup?' Sicherung: '+recovery.backup:'');
     console.error(reason);

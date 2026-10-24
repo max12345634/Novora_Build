@@ -15,7 +15,7 @@ test('V3.5 signed update from V3.3 restores files on rollback and never changes 
   fs.mkdirSync(path.join(dir,'src'),{recursive:true});fs.mkdirSync(path.join(dir,'data'),{recursive:true});
   fs.writeFileSync(path.join(dir,'data/state.json'),'SAVED_DATA');
   fs.writeFileSync(path.join(dir,'src/version-label.js'),"module.exports={VERSION:'3.3.0'};\n");
-  global.fetch=async url=>{const b=fs.readFileSync(path.join(feed,String(url).split('/').pop()));return new Response(b,{status:200,headers:{'content-length':String(b.length)}})};
+  global.fetch=async url=>{const b=fs.readFileSync(path.join(feed,String(url).split('/').pop()));return new Response(b,{status:200,headers:{'content-length':String(b.length),'content-type':String(url).endsWith('latest.json')?'application/json':'application/octet-stream'}})};
   process.env.WEBSITE_URL='https://novora-verify-control-center-ae02zt.v2.appdeploy.ai';
   const rel=await checkRelease(dir,'3.3.0');assert.ok(rel);const tx=backupAndInstall(dir,rel);
   assert.ok(fs.existsSync(path.join(dir,'src/partnerships.js')));assert.ok(fs.existsSync(path.join(dir,'src/partnership-analysis.js')));

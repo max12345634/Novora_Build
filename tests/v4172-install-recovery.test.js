@@ -73,7 +73,7 @@ test('V4.17.2: supervisor does not restart a worker after installation-time roll
       launched++;
       const child=new EventEmitter();child.exitCode=null;
       child.kill=()=>{child.exitCode=0;queueMicrotask(()=>child.emit('exit',0,'SIGTERM'));return true};
-      queueMicrotask(()=>child.emit('message',{kind:'novora-ready'}));
+      queueMicrotask(()=>child.emit('message',{kind:'novora-ready',version:'4.18.2'}));
       return child;
     }});
     await new Promise(resolve=>setTimeout(resolve,20));

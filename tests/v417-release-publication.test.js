@@ -44,7 +44,7 @@ test('V4.17: builder rejects manifest version inconsistent with installed code',
     const {privateKey}=require('node:crypto').generateKeyPairSync('ed25519');const key=path.join(dir,'key.pem');fs.writeFileSync(key,privateKey.export({format:'pem',type:'pkcs8'}));
     const env={...process.env,NOVORA_SIGNING_KEY_FILE:key};
     let err;
-    try{execFileSync(process.execPath,['scripts/build-signed-release.js','4.18.0',path.join(dir,'release')],{cwd:root,env,stdio:'pipe'})}catch(e){err=e}
+    try{execFileSync(process.execPath,['scripts/build-signed-release.js','4.18.1',path.join(dir,'release')],{cwd:root,env,stdio:'pipe'})}catch(e){err=e}
     assert.ok(err);assert.match(String(err.stderr),/Release-Version stimmt nicht/);assert.equal(fs.existsSync(path.join(dir,'release')),false);
   }finally{cleanup(dir)}
 });

@@ -1,1 +1,13 @@
-{"schema":1,"version":"3.1.1","files":[{"path":"src/version-label.js","url":"/novora-releases/version-label.js.txt","bytes":48,"sha256":"37d8454be065e69686c2736fe39b2cbddc952df90824d6d908501f441e0f9aa7"}],"signature":"32ugFny4Dc2oHcUCopsYkO2VGOyPSyAcCbHSKrDOZywBnjyfhIGfmZCcPG78Mf5264k2lHQaHuGThuGkcj7BDg=="}
+{
+  "schema": 1,
+  "version": "3.1.1",
+  "files": [
+    {
+      "path": "src/version-label.js",
+      "url": "/novora-releases/version-label.js.txt",
+      "bytes": 48,
+      "sha256": "37d8454be065e69686c2736fe39b2cbddc952df90824d6d908501f441e0f9aa7"
+    }
+  ],
+  "signature": "gKmCbfOUTpTeP0MmP6bIuMv8a2Tx1BwpCEn8LoftPtws++vYuJXv4bYENDgMS/YAORyUKphjOmNUsv3TQnpgBQ=="
+}

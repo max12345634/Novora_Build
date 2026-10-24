@@ -17,7 +17,7 @@ test('V3.3 signed feed is compatible with pinned updater, safely installs and ro
     fs.writeFileSync(path.join(temp,'src/version-label.js'),"module.exports={VERSION:'3.2.0'};\n");
     global.fetch=async url=>{
       const file=String(url).split('/').pop();const body=fs.readFileSync(path.join(rootFiles,file));
-      return new Response(body,{status:200,headers:{'content-length':String(body.length)}});
+      return new Response(body,{status:200,headers:{'content-length':String(body.length),'content-type':String(url).endsWith('latest.json')?'application/json':'application/octet-stream'}});
     };
     process.env.WEBSITE_URL='https://novora-verify-control-center-ae02zt.v2.appdeploy.ai';
     const release=await checkRelease(temp,'3.2.0');

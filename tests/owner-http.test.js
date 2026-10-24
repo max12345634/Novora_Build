@@ -18,3 +18,4 @@ test('owner preferences and changelog are private routes',async()=>{const f=fixt
  assert.equal((await fetch(url+'/api/bridge/owner-alerts',{method:'POST',headers,body:JSON.stringify({guildId:G,adminId:'000000000000000000',action:'enable'})})).status,403);
  assert.equal((await fetch(url+'/api/bridge/owner-alerts',{method:'POST',headers,body:JSON.stringify({guildId:G,adminId:A,action:'hack'})})).status,403);
  }finally{f.server.close()}});
+test('public health check exposes the running version without private status data',async()=>{const f=fixture();try{if(!f.server.listening)await once(f.server,'listening');const response=await fetch('http://127.0.0.1:'+f.server.address().port+'/health');assert.equal(response.status,200);assert.equal(await response.text(),'ok');assert.equal(response.headers.get('x-novora-version'),require('../src/version-label').VERSION)}finally{f.server.close()}});

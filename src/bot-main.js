@@ -233,6 +233,7 @@ const commands = [
   new SlashCommandBuilder().setName('verify-panel').setDescription('Individuelles Verify-Panel senden (Admin)'),
   new SlashCommandBuilder().setName('update-status').setDescription('Zeigt die automatische Bot-Update-Verbindung (Admin)'),
   new SlashCommandBuilder().setName('update-verbinden').setDescription('Website-Verbindung für sichere Auto-Updates herstellen (Owner)'),
+  new SlashCommandBuilder().setName('update-trennen').setDescription('Update-Veröffentlichung im Control Center widerrufen (Owner)'),
   new SlashCommandBuilder().setName('novora-updates').setDescription('Die Änderungen der letzten Novora-Versionen anzeigen'),
   new SlashCommandBuilder().setName('owner-alerts').setDescription('Private Owner-Benachrichtigungen einstellen (Admin)')
     .addStringOption(o=>o.setName('aktion').setDescription('Aktion').setRequired(true).addChoices({name:'Aktivieren',value:'enable'},{name:'Deaktivieren',value:'disable'},{name:'Stummschalten',value:'mute'},{name:'Stummschaltung aufheben',value:'unmute'},{name:'Status',value:'status'},{name:'Testnachricht',value:'test'}))
@@ -254,7 +255,7 @@ const commands = [
   ...rpSuite.commands,
   ...standardSuite.commands,
   setupCommand
-].filter(command=>['verify','website-verbinden','dashboard-rollen','transfer-revoke','oauth-status','novora-updates','owner-alerts','logs-view','logs-check','logs-export','update-status','update-verbinden','rp-start','rp-ende','rp-status',...standardSuite.commands.map(c=>c.toJSON().name)].includes(command.toJSON().name)).map(command => command.toJSON());
+].filter(command=>['verify','website-verbinden','dashboard-rollen','transfer-revoke','oauth-status','novora-updates','owner-alerts','logs-view','logs-check','logs-export','update-status','update-verbinden','update-trennen','rp-start','rp-ende','rp-status',...standardSuite.commands.map(c=>c.toJSON().name)].includes(command.toJSON().name)).map(command => command.toJSON());
 function verifyCommandPayload(command) {
   const checked = new Set();
   for (const opt of (command.options || [])) {
@@ -607,7 +608,9 @@ client.on(Events.InteractionCreate, async interaction => {
         let info={enabled:process.env.NOVORA_AUTO_UPDATE!=='false',currentVersion:VERSION};
         try{info={...info,...JSON.parse(require('node:fs').readFileSync(path.join(env.dataDir,'update-status.json'),'utf8'))}}catch{}
         const when=info.lastInstalled?new Date(info.lastInstalled).toLocaleString('de-DE'):'Noch kein Update installiert';
-        return interaction.reply({content:'**Novora Auto-Update**\nVersion: `'+VERSION+'`\nAutomatisch: **'+(info.enabled?'Aktiv':'Deaktiviert')+'**\nLetztes Update: '+when+(info.error?'\nHinweis: '+String(info.error).slice(0,160):''),flags:MessageFlags.Ephemeral});
+        const checked=info.lastCheck?new Date(info.lastCheck).toLocaleString('de-DE'):'Noch nicht geprüft';
+        const state=info.checking?'Prüfung läuft':info.manualRecoveryRequired?'Manuelle Wiederherstellung erforderlich':info.feedState==='not_configured'?'Release-Feed nicht eingerichtet':info.error?'Fehler':info.feedState==='no_update'?'Kein neueres Release':'Bereit';
+        return interaction.reply({content:'**Novora Auto-Update**\nVersion: `'+VERSION+'`\nAutomatisch: **'+(info.enabled?'Aktiv':'Deaktiviert')+'**\nStatus: **'+state+'**\nLetzte Prüfung: '+checked+'\nLetztes Update: '+when+(info.error?'\nHinweis: '+String(info.error).slice(0,160):''),flags:MessageFlags.Ephemeral});
       }
       if(interaction.commandName==='novora-emojis'){
         const app=await client.application.fetch();
@@ -618,14 +621,18 @@ client.on(Events.InteractionCreate, async interaction => {
         return interaction.editReply('Novora Application Emojis eingerichtet: '+Object.keys(all).join(', '));
       }
       if(interaction.commandName==='verify-panel')return sendVerifyPanel(interaction);
-      if (interaction.commandName === 'website-verbinden' || interaction.commandName === 'update-verbinden') {
+      if (interaction.commandName === 'website-verbinden' || interaction.commandName === 'update-verbinden' || interaction.commandName === 'update-trennen') {
         // Pairing grants cross-server dashboard access, so guild admin is not sufficient.
         // Fail closed when the Discord application owner cannot be verified.
         const application = await client.application.fetch();
         if (!isApplicationOwner(application, interaction.user.id)) {
           return interaction.reply({content:'Nur der Eigentümer der Discord-Bot-Anwendung darf das Dashboard verbinden.',flags:MessageFlags.Ephemeral});
         }
-        const code=bridge.newCode();
+        if(interaction.commandName==='update-trennen'){
+          bridge.revokeUpdates();
+          return interaction.reply({content:'Die Berechtigung zum Veröffentlichen von Updates wurde widerrufen. Für eine erneute Freigabe `/update-verbinden` ausführen.',flags:MessageFlags.Ephemeral});
+        }
+        const code=bridge.newCode(interaction.commandName==='update-verbinden'?'updates':'dashboard');
         return interaction.reply({content:'**Novora Website & Auto-Updates verbinden**\nGehe auf dein Novora-Dashboard → Einstellungen → Einfach verbinden.\nDie Verbindung erlaubt Statusabfragen; Updates werden weiterhin ausschließlich nach Ed25519-Prüfung installiert.\nDein einmaliger Code: `'+code+'`\nGültig für 10 Minuten. Nicht öffentlich teilen.',flags:MessageFlags.Ephemeral});
       }
       if (interaction.commandName === 'dashboard-rollen') {
@@ -831,5 +838,5 @@ setInterval(() => { void checkJobs(); },20000).unref();
 async function close() { if (shuttingDown) return; shuttingDown=true; voiceAudio.shutdown(); if(saveTimer)clearTimeout(saveTimer); await store.persist().catch(console.error); client.destroy(); process.exit(0); }
 process.once('SIGTERM',()=>{void close();});
 process.once('SIGINT',()=>{void close();});
-client.once(Events.ClientReady,()=>{if(process.send)process.send({kind:'novora-ready'});});
+client.once(Events.ClientReady,()=>{if(process.send)process.send({kind:'novora-ready',version:VERSION});});
 client.login(env.token).catch(err => { console.error('Discord Login fehlgeschlagen:',err.message); process.exit(1); });

@@ -2,7 +2,6 @@
 // Local, fail-closed release builder. Signing key is never bundled or printed.
 const fs=require('node:fs');
 const path=require('node:path');
-const os=require('node:os');
 const crypto=require('node:crypto');
 const {execFileSync}=require('node:child_process');
 const updater=require('../src/updater');
@@ -32,7 +31,8 @@ for(const dir of ['src','assets/banners','assets/emojis','assets/audio']){
   }
 }
 candidates.sort();
-const stage=fs.mkdtempSync(path.join(os.tmpdir(),'novora-release-'));
+fs.mkdirSync(path.dirname(out),{recursive:true});
+const stage=fs.mkdtempSync(path.join(path.dirname(out),'.novora-release-'));
 try{
   const files=[];
   for(const relative of candidates){

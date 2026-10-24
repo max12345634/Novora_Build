@@ -27,19 +27,19 @@ test('manifest tampering and unsafe target paths fail closed',()=>{
   assert.equal(updater.safePath('src/control.js'),true);
 });
 test('website hostname is pinned over HTTPS',()=>{
-  const old=process.env.WEBSITE_URL;
-  process.env.WEBSITE_URL='https://attacker.example';
+  const old=process.env.NOVORA_RELEASE_BASE_URL;
+  process.env.NOVORA_RELEASE_BASE_URL='https://attacker.example';
   assert.throws(()=>updater.releaseOrigin(),/offizielle/);
-  process.env.WEBSITE_URL='http://novora-verify-control-center-ae02zt.v2.appdeploy.ai';
+  process.env.NOVORA_RELEASE_BASE_URL='http://api-v2.appdeploy.ai/app/novora-verify-control-center-ae02zt/api';
   assert.throws(()=>updater.releaseOrigin(),/offizielle/);
-  if(old===undefined)delete process.env.WEBSITE_URL;else process.env.WEBSITE_URL=old;
+  if(old===undefined)delete process.env.NOVORA_RELEASE_BASE_URL;else process.env.NOVORA_RELEASE_BASE_URL=old;
 });
 test('download validates content digest and never changes state before commit',async()=>{
   const old=global.fetch; const hit=[];
   global.fetch=async(url)=>{
     hit.push(String(url));
-    if(String(url).endsWith('/latest.json'))return new Response(JSON.stringify(manifest),{status:200});
-    if(String(url).endsWith('/version-label.js.txt'))return new Response(content,{status:200});
+    if(String(url).endsWith('/latest.json'))return new Response(JSON.stringify(manifest),{status:200,headers:{'content-type':'application/json'}});
+    if(String(url).endsWith('/version-label.js.txt'))return new Response(content,{status:200,headers:{'content-type':'application/octet-stream'}});
     return new Response('bad',{status:404});
   };
   const d=fs.mkdtempSync(path.join(os.tmpdir(),'novora-updatetest-'));
@@ -59,7 +59,7 @@ test('download validates content digest and never changes state before commit',a
 });
 test('bad signed manifest payload cannot overwrite files',async()=>{
   const old=global.fetch;
-  global.fetch=async(url)=>String(url).endsWith('latest.json')?new Response(JSON.stringify(manifest)) : new Response(Buffer.from('malicious code'));
+  global.fetch=async(url)=>String(url).endsWith('latest.json')?new Response(JSON.stringify(manifest),{headers:{'content-type':'application/json'}}) : new Response(Buffer.from('malicious code'),{headers:{'content-type':'application/octet-stream'}});
   try{await assert.rejects(()=>updater.checkRelease(os.tmpdir(),'3.1.0'),/Prüfsumme/)}finally{global.fetch=old}
 });
 

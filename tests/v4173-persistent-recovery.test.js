@@ -35,7 +35,7 @@ test('V4.17.3: persistent backup and journal survive a simulated container temp 
     assert.match(fs.readFileSync(s.target,'utf8'),/old/);
   }finally{s.cleanup()}
 });
-test('V4.17.3: successful commit removes journal and backup only after explicit finish',()=>{
+test('V4.18: successful commit removes journal and retains bounded verified backup',()=>{
   const s=sandbox();
   try{
     const tx=updater.backupAndInstall(s.root,s.release);
@@ -43,11 +43,12 @@ test('V4.17.3: successful commit removes journal and backup only after explicit 
     assert.deepEqual(fs.readFileSync(s.target),signedBytes);
     tx.finish();
     assert.equal(updater.pendingRecovery(s.root),null);
-    assert.equal(fs.existsSync(backup),false);
+    assert.equal(fs.existsSync(backup),true);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(backup,'backup.json'),'utf8')).schema,1);
     assert.equal(fs.readFileSync(path.join(s.root,'data/user-data.json'),'utf8'),'DO NOT CHANGE');
   }finally{s.cleanup()}
 });
-test('V4.17.3: restart refuses to launch worker while a transaction journal exists',()=>{
+test('V4.18: restart automatically restores a valid interrupted update before launch',()=>{
   const s=sandbox();
   const oldLoad=Module._load;
   let tx,controller;
@@ -61,19 +62,18 @@ test('V4.17.3: restart refuses to launch worker while a transaction journal exis
     const {start}=require('../src/supervisor');
     Module._load=oldLoad;
     let launched=0;
-    controller=start({root:s.root,launch:()=>{launched++;throw Error('must not launch')}});
-    assert.equal(launched,0);
+    const EventEmitter=require('node:events');
+    controller=start({root:s.root,launch:()=>{launched++;const child=new EventEmitter();child.exitCode=null;child.kill=()=>{child.exitCode=0;queueMicrotask(()=>child.emit('exit',0,'SIGTERM'));return true};queueMicrotask(()=>child.emit('message',{kind:'novora-ready',version:'4.18.2'}));return child}});
+    assert.equal(launched,1);
     assert.equal(controller.isReady(),false);
     const status=JSON.parse(fs.readFileSync(path.join(s.root,'data/update-status.json'),'utf8'));
-    assert.equal(status.manualRecoveryRequired,true);
-    assert.match(status.error,/Manuelle Wiederherstellung/);
-    assert.ok(updater.pendingRecovery(s.root));
+    assert.equal(status.manualRecoveryRequired,false);
+    assert.equal(updater.pendingRecovery(s.root),null);
+    assert.match(fs.readFileSync(s.target,'utf8'),/old/);
     assert.equal(fs.readFileSync(path.join(s.root,'data/user-data.json'),'utf8'),'DO NOT CHANGE');
   }finally{
     Module._load=oldLoad;
     controller?.shutdown();
-    // Simulate manual restore: only for the isolated test sandbox.
-    tx?.rollback();
     s.cleanup();
   }
 });

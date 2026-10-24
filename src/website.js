@@ -1,6 +1,7 @@
 'use strict';
 const http = require('node:http');
 const { id } = require('./oauth');
+const { VERSION } = require('./control');
 const escape = str => String(str || '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 const wrap = (title, body) => `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(title)} – Novora Verify</title><style>body{font:15px system-ui;background:#f7f9ff;color:#1a2450;margin:0;display:grid;place-items:center;min-height:100vh}.card{background:white;max-width:480px;width:calc(100% - 60px);border-radius:24px;box-shadow:0 20px 60px #22336616;padding:32px}h1{font-size:26px;margin:14px 0}p{color:#63708a;line-height:1.7}.tag{font-size:12px;letter-spacing:1px;color:#6879cc;font-weight:800}.btn{display:block;border:0;background:#6477ed;color:white;width:100%;box-sizing:border-box;padding:14px;border-radius:12px;cursor:pointer;font:700 14px system-ui;margin-top:15px;text-align:center;text-decoration:none}select{padding:12px;width:100%;box-sizing:border-box;border:1px solid #dce2ef;border-radius:10px}label{display:block;margin:14px 0;font-weight:600;font-size:13px}.success-mark{display:grid;place-items:center;width:54px;height:54px;border-radius:16px;background:#edf7f2;color:#168054;font-weight:800;font-size:28px;margin:22px 0 12px}.success-note{font-size:13px;color:#7b859a;margin-top:26px}small{display:block;color:#8491ad;margin:20px 0 0}</style></head><body><main class="card"><div class="tag">NOVORA VERIFY</div>${body}</main></body></html>`;
 
@@ -19,6 +20,7 @@ function startWebsite({ port, publicUrl, websiteUrl, client, oauth, store, bridg
         const readJson=async()=>{const parts=[];let length=0;for await(const chunk of req){length+=chunk.length;if(length>12000)throw new Error('Anfrage zu groß');parts.push(chunk);}return JSON.parse(Buffer.concat(parts).toString('utf8')||'{}');};
         if(req.method==='POST'&&loc.pathname==='/api/bridge/pair') {const body=await readJson();const result=bridge.pair(body.code);return sendJson(result.status,result.body);}
         if(!bridge.authorized(req.headers.authorization)) return sendJson(401,{error:'Nicht autorisiert'});
+        if(req.method==='GET'&&loc.pathname==='/api/bridge/update-authority')return sendJson(200,bridge.updateAuthority());
         if(req.method==='GET'&&loc.pathname==='/api/bridge/support'){
           try{return sendJson(200,await bridge.support.snapshot(String(loc.searchParams.get('guildId')||''),String(loc.searchParams.get('adminId')||'')));}
           catch(e){return sendJson(403,{error:String(e.message).slice(0,180)});}
@@ -140,7 +142,7 @@ function startWebsite({ port, publicUrl, websiteUrl, client, oauth, store, bridg
         return send(200, transcriptWrap('Support-Transkript', body));
       }
 
-      if (req.method === 'GET' && loc.pathname === '/health') return send(200, 'ok');
+      if (req.method === 'GET' && loc.pathname === '/health') return send(200, 'ok', {'X-Novora-Version':VERSION});
       if (req.method === 'GET' && loc.pathname === '/') return send(200, wrap('Willkommen', '<h1>Novora Verify</h1><p>Du kannst deine Verifizierung über den Verify-Button auf deinem Discord-Server starten.</p>'));
       if(req.method==='GET'&&loc.pathname==='/oauth/start') {
         const gid=id(loc.searchParams.get('guild'));

@@ -48,3 +48,21 @@ test('dashboard pairing is restricted to the Discord application owner',()=>{
   assert.equal(isApplicationOwner({owner:null},'111111111111111111'),false);
   assert.equal(isApplicationOwner({},'111111111111111111'),false);
 });
+
+test('update pairing grant is persistent, single-use and revocable',()=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'nvbridge-update-'));
+  try{
+    const bridge=makeBridge({dir,snapshot:()=>({})});
+    const dashboard=bridge.pair(bridge.newCode('dashboard'));assert.equal(dashboard.body.updateAuthorized,false);
+    const code=bridge.newCode('updates');const granted=bridge.pair(code);assert.equal(granted.body.updateAuthorized,true);assert.equal(bridge.pair(code).status,403);
+    assert.equal(bridge.updateAuthority().authorized,true);
+    const restarted=makeBridge({dir,snapshot:()=>({})});assert.equal(restarted.updateAuthority().authorized,true);
+    restarted.revokeUpdates();assert.equal(restarted.updateAuthority().authorized,false);
+  }finally{fs.rmSync(dir,{recursive:true,force:true})}
+});
+
+test('expired update pairing code is rejected and consumed',()=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'nvbridge-expired-'));const real=Date.now;let now=1000;Date.now=()=>now;
+  try{const bridge=makeBridge({dir,snapshot:()=>({})});const code=bridge.newCode('updates');now+=10*60*1000;assert.equal(bridge.pair(code).status,403);now=1001;assert.equal(bridge.pair(code).status,403);assert.equal(bridge.updateAuthority().authorized,false)}
+  finally{Date.now=real;fs.rmSync(dir,{recursive:true,force:true})}
+});
