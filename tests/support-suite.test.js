@@ -223,5 +223,5 @@ test('4.18.3: failed claim persistence rolls back and emits no announcement',asy
 });
 test('4.18.3: Discord MessageCreate routes into auto-claim handler',()=>{
  const src=require('node:fs').readFileSync(require('node:path').join(__dirname,'../src/bot-main.js'),'utf8');
- assert.match(src,/supportSuite\\.onTicketMessage\\(message\\)/);
+ assert.match(src,/supportSuite\.onTicketMessage\(message\)/);
 });
