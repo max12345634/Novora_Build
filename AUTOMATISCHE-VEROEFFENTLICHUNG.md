@@ -24,19 +24,22 @@ in einem beliebigen Schritt bricht den Lauf vor einer Erfolgsmeldung ab.
 
 ## Sicherer Zugriff außerhalb von Codex
 
-Der maßgebliche Quellstand liegt in einem privaten GitHub-Repository. ChatGPT
-arbeitet dort ausschließlich über den verbundenen GitHub-Connector mit Branches
-und Pull Requests. Es erhält weder Bot-Token noch private Signierschlüssel.
+Der maßgebliche, geheimnisfreie Quellstand liegt im verbundenen GitHub-
+Repository. ChatGPT arbeitet dort ausschließlich über Branches und Pull Requests.
+`.env`, `data/`, Backups, Logs, Release-Ausgaben und Schlüssel sind durch die
+Repository-Regeln ausgeschlossen.
 
-GitHub Actions führt für jeden Pull Request Syntax- und Regressionstests aus.
-Nur ein Commit auf `main` mit einer höheren, in `package.json` und
+GitHub Actions besitzt keine Novora-Schlüssel. Es führt für jeden Pull Request
+Syntax-, Regressionstests und die Prüfung gegen den signierten Live-Feed aus.
+Nur ein geprüfter Commit auf `main` mit einer höheren, in `package.json` und
 `src/version-label.js` identischen Version sowie passenden
-`release-notes/<Version>.md` darf den Release-Job erreichen. Die privaten
-Ed25519-Schlüssel liegen als geschützte Actions-Secrets vor, werden nur im
-kurzlebigen Runner mit Dateimodus 0600 materialisiert und anschließend gelöscht.
-Der serverseitige Publisher verlangt zusätzlich die widerrufbare
-Discord-Updatefreigabe. Ein Fehler in Tests, Version, Feed, Signatur, Upload oder
-BotHosting-Liveprüfung beendet den Job ohne Erfolgsmeldung.
+`release-notes/<Version>.md` wird vom getrennten Codex-Release-Worker übernommen.
+Dieser Worker läuft im geschützten persistenten Workspace, wiederholt alle Tests,
+signiert lokal und veröffentlicht über den Maschinenkanal. ChatGPT und GitHub
+erhalten weder Bot-Token noch private Ed25519-Schlüssel. Der serverseitige
+Publisher verlangt zusätzlich die widerrufbare Discord-Updatefreigabe. Ein Fehler
+in Tests, Version, Feed, Signatur, Upload oder BotHosting-Liveprüfung beendet den
+Lauf ohne Erfolgsmeldung.
 
 ## Live-Nachweis
 
