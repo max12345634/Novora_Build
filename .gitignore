@@ -5,3 +5,5 @@ data/
 release-output/
 *.pem
 *.key
+.novora-publish-*.json
+npm-debug.log*

@@ -22,6 +22,22 @@ Der private Release-Schlüssel und der private Publisher-Schlüssel dürfen nie 
 Git, ZIP-Dateien, Logs, Browserfelder oder Chatnachrichten gelangen. Ein Fehler
 in einem beliebigen Schritt bricht den Lauf vor einer Erfolgsmeldung ab.
 
+## Sicherer Zugriff außerhalb von Codex
+
+Der maßgebliche Quellstand liegt in einem privaten GitHub-Repository. ChatGPT
+arbeitet dort ausschließlich über den verbundenen GitHub-Connector mit Branches
+und Pull Requests. Es erhält weder Bot-Token noch private Signierschlüssel.
+
+GitHub Actions führt für jeden Pull Request Syntax- und Regressionstests aus.
+Nur ein Commit auf `main` mit einer höheren, in `package.json` und
+`src/version-label.js` identischen Version sowie passenden
+`release-notes/<Version>.md` darf den Release-Job erreichen. Die privaten
+Ed25519-Schlüssel liegen als geschützte Actions-Secrets vor, werden nur im
+kurzlebigen Runner mit Dateimodus 0600 materialisiert und anschließend gelöscht.
+Der serverseitige Publisher verlangt zusätzlich die widerrufbare
+Discord-Updatefreigabe. Ein Fehler in Tests, Version, Feed, Signatur, Upload oder
+BotHosting-Liveprüfung beendet den Job ohne Erfolgsmeldung.
+
 ## Live-Nachweis
 
 Nach der Veröffentlichung wird gewartet, bis der BotHosting-Healthcheck den

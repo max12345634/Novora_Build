@@ -1,0 +1,86 @@
+name: Test and publish signed update
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: novora-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Node.js 22 regression tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Use Node.js 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.12.0
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+      - name: Check JavaScript syntax
+        run: npm run check
+      - name: Run full regression suite
+        run: npm test
+
+  release:
+    name: Publish newer signed version
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    environment: production
+    steps:
+      - name: Check out tested revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Use Node.js 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.12.0
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+      - name: Validate live feed and release decision
+        id: gate
+        run: node scripts/ci-release-gate.js
+      - name: Materialize protected Ed25519 keys
+        if: steps.gate.outputs.publish == 'true'
+        shell: bash
+        env:
+          NOVORA_SIGNING_KEY_B64: ${{ secrets.NOVORA_SIGNING_KEY_B64 }}
+          NOVORA_PUBLISHER_KEY_B64: ${{ secrets.NOVORA_PUBLISHER_KEY_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "$NOVORA_SIGNING_KEY_B64"
+          test -n "$NOVORA_PUBLISHER_KEY_B64"
+          umask 077
+          printf '%s' "$NOVORA_SIGNING_KEY_B64" | base64 --decode > "$RUNNER_TEMP/novora-release-ed25519.pem"
+          printf '%s' "$NOVORA_PUBLISHER_KEY_B64" | base64 --decode > "$RUNNER_TEMP/novora-publisher-ed25519.pem"
+          chmod 600 "$RUNNER_TEMP/novora-release-ed25519.pem" "$RUNNER_TEMP/novora-publisher-ed25519.pem"
+      - name: Test, sign, upload and verify release
+        if: steps.gate.outputs.publish == 'true'
+        env:
+          NOVORA_SIGNING_KEY_FILE: ${{ runner.temp }}/novora-release-ed25519.pem
+          NOVORA_PUBLISHER_KEY_FILE: ${{ runner.temp }}/novora-publisher-ed25519.pem
+        run: npm run release:auto -- "${{ steps.gate.outputs.version }}" "${{ steps.gate.outputs.changelog }}"
+      - name: Verify BotHosting installed the release
+        if: steps.gate.outputs.publish == 'true'
+        run: node scripts/verify-live-install.js "${{ steps.gate.outputs.version }}"
+      - name: Remove temporary signing material
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/novora-release-ed25519.pem" "$RUNNER_TEMP/novora-publisher-ed25519.pem"

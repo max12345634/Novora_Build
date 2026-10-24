@@ -2,7 +2,7 @@
   "name": "novora-verify-bothosting",
   "version": "4.18.2",
   "private": true,
-  "description": "Novora V4.17.5: verified atomic rollback and reliable waiting voice case closure",
+  "description": "Novora Verify Discord bot with signed atomic automatic updates",
   "main": "index.js",
   "engines": {
     "node": ">=22.12.0"
