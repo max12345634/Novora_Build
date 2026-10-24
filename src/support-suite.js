@@ -243,6 +243,29 @@ function makeSupportSuite({client,store,publicUrl}){
     }
     }finally{activeLocks.delete(lockId)}
   }
+  async function onTicketMessage(message){
+    // Message content is available only with Discord's enabled Message Content
+    // intent. Never infer a substantive staff answer from an empty payload.
+    if(!message?.guild||message.author?.bot||message.system||!message.author?.id)return false;
+    const text=String(message.content||'').trim();
+    if(text.length<12||!/[\p{L}\p{N}]/u.test(text)||/^[!/.]/.test(text))return false;
+    const ticket=tickets().find(t=>t.guildId===message.guild.id&&t.channelId===message.channelId&&t.status==='open');
+    if(!ticket||ticket.userId===message.author.id)return false;
+    const cfg=config(message.guild.id).tickets;
+    if(!cfg)return false;
+    const member=message.member||await message.guild.members.fetch(message.author.id).catch(()=>null);
+    const teamRole=ticket.kind==='report'&&cfg.complaintsRoleId?cfg.complaintsRoleId:cfg.teamRoleId;
+    if(!staff(member,message.guild,teamRole))return false;
+    try{
+      await actionTicket(message.guild,message.author.id,ticket.id,'claim');
+      return true;
+    }catch(err){
+      // Concurrent messages and manual claims must not create another owner
+      // or a duplicate announcement. Unexpected storage errors are surfaced.
+      if(/Ticket wird bereits bearbeitet|Bereits übernommen|Ticket bereits geschlossen/.test(err.message))return false;
+      throw err;
+    }
+  }
   async function actionTicket(guild,actor,ticketId,action){
     const t=s.supportTickets[ticketId];if(!t||t.guildId!==guild.id)throw Error('Ticket nicht gefunden.');
     const cfg=config(guild.id).tickets;if(!cfg)throw Error('Ticket-Konfiguration fehlt.');
@@ -272,8 +295,19 @@ function makeSupportSuite({client,store,publicUrl}){
       }else if(action==='claim'){
         if(t.userId===actor)throw Error('Du kannst dein eigenes Ticket nicht übernehmen.');
         if(t.status!=='open')throw Error('Bereits übernommen.');
+        // Commit the claim before announcing it. If persistence fails, restore
+        // the in-memory ticket so another team member can retry safely.
+        const before={staffId:t.staffId,status:t.status,claimedAt:t.claimedAt};
         t.staffId=actor;t.status='claimed';t.claimedAt=Date.now();
-        await store.persist();await editTicket(guild,t);
+        try{await store.persist();}catch(err){Object.assign(t,before);throw err;}
+        const roleId=t.kind==='report'&&cfg.complaintsRoleId?cfg.complaintsRoleId:cfg.teamRoleId;
+        const teamRole=member.roles?.cache?.get(roleId)||guild.roles?.cache?.get(roleId);
+        const roleName=actor===guild.ownerId?'Owner':member.permissions?.has(PermissionFlagsBits.Administrator)?'Administrator':(teamRole?.name||'Teammitglied');
+        const safeName=value=>clean(value,70).replace(/[*_`~|<>]/g,'');
+        const displayName=safeName(member.displayName||member.user?.globalName||member.user?.username||actor);
+        const channel=await guild.channels.fetch(t.channelId).catch(()=>null);
+        if(channel?.send)await channel.send({content:`${safeName(roleName)} ${displayName} hat das Ticket übernommen.`,allowedMentions:{parse:[]}}).catch(err=>console.warn('Ticket-Übernahmemeldung:',err.message));
+        await editTicket(guild,t).catch(err=>console.warn('Ticket-Panel nach Übernahme:',err.message));
         await log(guild,cfg.logId,`Ticket übernommen · ${t.id} · User ${t.userId} · Team ${actor}`);
       }else if(action==='decline'){
         if(!t.closeRequestedBy)throw Error('Keine Schließungs-Anfrage vorhanden.');
@@ -667,7 +701,7 @@ function makeSupportSuite({client,store,publicUrl}){
     await store.persist();
   }
   return {config,ticketConfig,voiceConfig,setupTickets,setupVoice,sendTicketPanel,updatePublishedPanel,onInteraction,onVoiceStateUpdate:voiceJoin,
-    actionTicket,claimVoice,finishVoice,closeVoiceByStaff,snapshot,findDashboardCase,dashboardAction,shutdownRecovery,
+    actionTicket,onTicketMessage,claimVoice,finishVoice,closeVoiceByStaff,snapshot,findDashboardCase,dashboardAction,shutdownRecovery,
     ticketPanel,voiceNotice,ratingModal,ratings:s.supportRatings};
 }
 module.exports={makeSupportSuite,KINDS,ticketConfig,voiceConfig,staff,ticketPanel,voiceNotice,ticketView,ratingModal,stars};
