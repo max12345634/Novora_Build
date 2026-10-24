@@ -160,3 +160,68 @@ test('V4.17.5: failed persistence never reports a waiting voice case as closed',
  assert.equal(state.supportVoiceCases[caseId].closedBy,undefined);
  assert.equal((state.audit||[]).length,0);
 });
+
+test('4.18.3: first substantive staff reply claims the ticket and announces role once',async()=>{
+ const {mod,guild,state,members,channels}=mk();
+ const channelId='888888888888888888',ticketId='ticket-1',sent=[];
+ channels.set(channelId,{id:channelId,send:async payload=>{sent.push(payload);return {id:'999999999999999999'}}});
+ state.supportSettings[ID]={tickets:{teamRoleId:ROLE}};
+ state.supportTickets[ticketId]={id:ticketId,guildId:ID,channelId,userId:USER,kind:'question',status:'open',createdAt:Date.now()};
+ members.set(ADMIN,{id:ADMIN,displayName:'Max',permissions:{has:()=>true},roles:{cache:new Map()}});
+ const msg={guild,guildId:ID,channelId,author:{id:ADMIN,bot:false},content:'Ich kümmere mich um dein Anliegen.'};
+ assert.equal(await mod.onTicketMessage(msg),true);
+ assert.equal(state.supportTickets[ticketId].status,'claimed');
+ assert.equal(state.supportTickets[ticketId].staffId,ADMIN);
+ assert.equal(sent.length,1);
+ assert.match(sent[0].content,/Owner Max hat das Ticket übernommen/);
+ assert.deepEqual(sent[0].allowedMentions,{parse:[]});
+ assert.equal(await mod.onTicketMessage(msg),false);
+ assert.equal(sent.length,1);
+ assert.equal(state.audit.filter(x=>x.action==='support_ticket_claim').length,1);
+});
+test('4.18.3: concurrent replies cannot claim twice or announce twice',async()=>{
+ const {mod,guild,state,members,channels,store}=mk();
+ const channelId='888888888888888888',sent=[];
+ channels.set(channelId,{id:channelId,send:async payload=>{sent.push(payload);return {id:'999999999999999999'}}});
+ state.supportSettings[ID]={tickets:{teamRoleId:ROLE}};
+ state.supportTickets.a={id:'a',guildId:ID,channelId,userId:USER,kind:'question',status:'open'};
+ members.set(ADMIN,{id:ADMIN,displayName:'Max',permissions:{has:()=>true},roles:{cache:new Map()}});
+ const msg={guild,channelId,author:{id:ADMIN,bot:false},content:'Ich übernehme die Bearbeitung dieses Tickets.'};
+ const results=await Promise.all([mod.onTicketMessage(msg),mod.onTicketMessage(msg)]);
+ assert.deepEqual(results.sort(),[false,true]);
+ assert.equal(sent.length,1);
+ assert.equal(state.supportTickets.a.staffId,ADMIN);
+});
+test('4.18.3: requester, non-staff, bots, short replies and commands never auto-claim',async()=>{
+ const {mod,guild,state,members,channels}=mk();
+ const channelId='888888888888888888',other='777777777777777777';
+ channels.set(channelId,{id:channelId,send:async()=>{throw Error('unexpected announcement')}});
+ state.supportSettings[ID]={tickets:{teamRoleId:ROLE}};
+ state.supportTickets.a={id:'a',guildId:ID,channelId,userId:USER,kind:'report',status:'open'};
+ members.set(USER,{id:USER,permissions:{has:()=>false},roles:{cache:new Map()}});
+ members.set(other,{id:other,permissions:{has:()=>false},roles:{cache:new Map()}});
+ members.set(ADMIN,{id:ADMIN,permissions:{has:()=>true},roles:{cache:new Map()}});
+ for(const [author,content] of [[USER,'Ich habe noch eine Frage'],[other,'Ich kümmere mich darum'],[ADMIN,'ok'],[ADMIN,'/ticket status']]){
+   assert.equal(await mod.onTicketMessage({guild,channelId,author:{id:author,bot:false},content}),false);
+ }
+ assert.equal(await mod.onTicketMessage({guild,channelId,author:{id:ADMIN,bot:true},content:'Ich helfe dir gleich weiter'}),false);
+ assert.equal(state.supportTickets.a.status,'open');
+});
+test('4.18.3: failed claim persistence rolls back and emits no announcement',async()=>{
+ const {mod,guild,state,members,channels,store}=mk();
+ const channelId='888888888888888888',sent=[];
+ channels.set(channelId,{id:channelId,send:async p=>sent.push(p)});
+ state.supportSettings[ID]={tickets:{teamRoleId:ROLE}};
+ state.supportTickets.a={id:'a',guildId:ID,channelId,userId:USER,kind:'question',status:'open',staffId:null,claimedAt:null};
+ members.set(ADMIN,{id:ADMIN,permissions:{has:()=>true},roles:{cache:new Map()}});
+ store.persist=async()=>{throw Error('storage unavailable')};
+ await assert.rejects(mod.onTicketMessage({guild,channelId,author:{id:ADMIN,bot:false},content:'Ich kümmere mich um dieses Problem.'}),/storage unavailable/);
+ assert.equal(state.supportTickets.a.status,'open');
+ assert.equal(state.supportTickets.a.staffId,null);
+ assert.equal(state.supportTickets.a.claimedAt,null);
+ assert.equal(sent.length,0);
+});
+test('4.18.3: Discord MessageCreate routes into auto-claim handler',()=>{
+ const src=require('node:fs').readFileSync(require('node:path').join(__dirname,'../src/bot-main.js'),'utf8');
+ assert.match(src,/supportSuite\\.onTicketMessage\\(message\\)/);
+});
