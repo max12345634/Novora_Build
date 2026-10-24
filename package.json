@@ -12,7 +12,8 @@
     "check": "node --check index.js && node --check src/bot-main.js && node --check src/support-questions.js && node --check src/community-suite.js && node --check src/member-greetings.js && node --check src/voice-audio.js && node --check src/support-suite.js && node --check src/partnerships.js && node --check src/panel-art.js && node --check src/ui-v2.js && node --check src/setup-flow.js && node --check src/panel-sync.js && node --check src/updater.js && node --check src/ticket-archive.js && node --check src/website.js && node --check src/message-flags.js && node --check src/store.js && node --check src/rp-suite.js && node --check src/standard-suite.js",
     "test": "node --test tests/*.test.js",
     "release:auto": "node scripts/automated-release.js",
-    "release:publish": "node scripts/publish-release.js",
+    "release:publish": "node scripts/publish-github-release.js",
+    "release:publish:appdeploy": "node scripts/publish-release.js",
     "recover:check": "node scripts/recover-update.js"
   },
   "dependencies": {

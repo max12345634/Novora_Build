@@ -19,9 +19,9 @@ function run(args){
 }
 
 if(fs.existsSync(out))fs.rmSync(out,{recursive:true,force:true});
-run(['--check','scripts/publish-release.js']);
+run(['--check','scripts/publish-github-release.js']);
 run(['--test',...fs.readdirSync(path.join(root,'tests')).filter(name=>name.endsWith('.test.js')).map(name=>'tests/'+name)]);
 run(['scripts/build-signed-release.js',version,out]);
 run(['scripts/verify-release-output.js',out]);
-run(['scripts/publish-release.js',out,changelog]);
+run(['scripts/publish-github-release.js',out,changelog]);
 console.log('Automatischer Release-Lauf vollständig abgeschlossen: '+version);
