@@ -1,6 +1,6 @@
 {
   "name": "novora-verify-bothosting",
-  "version": "4.18.4",
+  "version": "4.18.5",
   "private": true,
   "description": "Novora Verify Discord bot with signed atomic automatic updates",
   "main": "index.js",
