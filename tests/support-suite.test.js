@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const Module=require('node:module');const nativeLoad=Module._load;const discord=require('./discord-stub');Module._load=function(request,...args){if(request==='discord.js')return discord;return nativeLoad.call(this,request,...args)};
 const {ChannelType}=discord;
-const {makeSupportSuite,ticketConfig,voiceConfig,staff,ticketPanel,voiceNotice,ratingModal,stars}=require('../src/support-suite');
+const {makeSupportSuite,ticketConfig,voiceConfig,staff,ticketPanel,voiceNotice,ticketView,ratingModal,stars}=require('../src/support-suite');
 const {setupCommand}=require('../src/setup-menu');Module._load=nativeLoad;
 const ID='123456789012345678',USER='234567890123456789',ADMIN='345678901234567890',ROLE='456789012345678901';
 function mk(){const state={},store={state,persist:async()=>{}};const channels=new Map();const members=new Map();const guild={id:ID,ownerId:ADMIN,name:'Dresden City',members:{fetch:async id=>members.get(id)||null,fetchMe:async()=>({permissions:{has:()=>true}})},channels:{cache:channels,fetch:async id=>channels.get(id)||null,create:async payload=>{const c={id:String(Math.random()).slice(2).padEnd(18,'0').slice(0,18),type:payload.type,name:payload.name,parentId:payload.parent, members:new Map(),messages:{fetch:async()=>null},delete:async()=>{channels.delete(c.id)},permissionOverwrites:{edit:async()=>{}},send:async()=>({id:'567890123456789012'})};channels.set(c.id,c);return c}},iconURL:()=>null};
@@ -224,4 +224,28 @@ test('4.18.3: failed claim persistence rolls back and emits no announcement',asy
 test('4.18.3: Discord MessageCreate routes into auto-claim handler',()=>{
  const src=require('node:fs').readFileSync(require('node:path').join(__dirname,'../src/bot-main.js'),'utf8');
  assert.match(src,/supportSuite\.onTicketMessage\(message\)/);
+});
+
+test('4.18.4: ticket panel shows claim timestamp and clears it after release',async()=>{
+ const {mod,guild,state,members,channels}=mk();
+ const channelId='888888888888888888',ticketId='claim-time';
+ channels.set(channelId,{id:channelId,send:async()=>({id:'999999999999999999'})});
+ state.supportSettings[ID]={tickets:{teamRoleId:ROLE}};
+ const ticket={id:ticketId,guildId:ID,channelId,userId:USER,kind:'question',status:'open',staffId:null,createdAt:Date.now()-60000};
+ state.supportTickets[ticketId]=ticket;
+ members.set(ADMIN,{id:ADMIN,displayName:'Max',permissions:{has:()=>true},roles:{cache:new Map()}});
+ const initial=JSON.stringify(ticketView(ticket,{},guild.name));
+ assert.match(initial,/Noch nicht übernommen/);
+ await mod.actionTicket(guild,ADMIN,ticketId,'claim');
+ const claimed=JSON.stringify(ticketView(ticket,{},guild.name));
+ assert.match(claimed,/Übernommen:/);
+ assert.ok(claimed.includes('<t:'+Math.floor(ticket.claimedAt/1000)+':R>'));
+ assert.ok(claimed.includes('<@'+ADMIN+'>'));
+ await mod.actionTicket(guild,ADMIN,ticketId,'release');
+ const released=JSON.stringify(ticketView(ticket,{},guild.name));
+ assert.match(released,/Noch nicht übernommen/);
+ assert.ok(!released.includes('<t:'+Math.floor((ticket.claimedAt||0)/1000)+':R>'));
+ assert.equal(ticket.claimedAt,null);
+ assert.equal(ticket.staffId,null);
+ assert.equal(ticket.status,'open');
 });
