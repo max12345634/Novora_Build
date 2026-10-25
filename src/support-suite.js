@@ -270,24 +270,29 @@ function makeSupportSuite({client,store,publicUrl}){
   async function actionTicket(guild,actor,ticketId,action){
     const t=s.supportTickets[ticketId];if(!t||t.guildId!==guild.id)throw Error('Ticket nicht gefunden.');
     const cfg=config(guild.id).tickets;if(!cfg)throw Error('Ticket-Konfiguration fehlt.');
-    const member=await guild.members.fetch(actor).catch(()=>null);
+    const member=action==='request'?null:await guild.members.fetch(actor).catch(()=>null);
     if(action==='request'){
       if(t.userId!==actor)throw Error('Nur die betroffene Person kann eine Schließung anfragen.');
-      if(t.status==='closed')throw Error('Ticket bereits geschlossen.');
-      if(t.closeRequestedBy)throw Error('Die Schließung wurde bereits angefragt.');
-      t.closeRequestedBy=actor;await store.persist();await editTicket(guild,t);
-      const channel=await guild.channels.fetch(t.channelId).catch(()=>null);
-      const roleId=t.kind==='report'&&cfg.complaintsRoleId?cfg.complaintsRoleId:cfg.teamRoleId;
-      if(channel?.send)await channel.send({content:`<@&${roleId}> · Die betroffene Person möchte das Ticket schließen. Bitte prüfen.`,allowedMentions:{roles:[roleId]}}).catch(()=>{});
-      return {ok:true,ticket:t,status:t.status};
+    }else{
+      checkTeam(guild,member,t.kind==='report'&&cfg.complaintsRoleId?cfg.complaintsRoleId:cfg.teamRoleId);
     }
-    checkTeam(guild,member,t.kind==='report'&&cfg.complaintsRoleId?cfg.complaintsRoleId:cfg.teamRoleId);
     if(t.userId===actor&&['claim','release'].includes(action))throw Error('Du kannst dein eigenes Ticket nicht übernehmen.');
     if(activeLocks.has('t'+ticketId))throw Error('Ticket wird bereits bearbeitet.');
     activeLocks.add('t'+ticketId);
     try{
       if(t.status==='closed')throw Error('Ticket bereits geschlossen.');
-      if(action==='stage'){
+      if(action==='request'){
+        if(t.closeRequestedBy)throw Error('Die Schließung wurde bereits angefragt.');
+        // Use the same per-ticket lock as staff actions. Commit before notifying,
+        // and never announce a request that could not be stored.
+        const previous=t.closeRequestedBy;
+        t.closeRequestedBy=actor;
+        try{await store.persist();}catch(err){t.closeRequestedBy=previous;throw err;}
+        await editTicket(guild,t).catch(err=>console.warn('Schließungs-Anfrage im Ticket-Panel:',err.message));
+        const channel=await guild.channels.fetch(t.channelId).catch(()=>null);
+        const roleId=t.kind==='report'&&cfg.complaintsRoleId?cfg.complaintsRoleId:cfg.teamRoleId;
+        if(channel?.send)await channel.send({content:`<@&${roleId}> · Die betroffene Person möchte das Ticket schließen. Bitte prüfen.`,allowedMentions:{roles:[roleId]}}).catch(err=>console.warn('Schließungs-Anfrage Benachrichtigung:',err.message));
+      }else if(action==='stage'){
         if(t.status!=='claimed')throw Error('Bitte zuerst das Ticket übernehmen.');
         if(t.staffId!==actor&&!member.permissions?.has(PermissionFlagsBits.Administrator))throw Error('Nur der zuständige Bearbeiter darf den Bearbeitungsschritt bestätigen.');
         if(t.workflowStage)throw Error('Der Prüfschritt wurde bereits bestätigt.');
@@ -312,8 +317,10 @@ function makeSupportSuite({client,store,publicUrl}){
         await log(guild,cfg.logId,`Ticket übernommen · ${t.id} · User ${t.userId} · Team ${actor}`);
       }else if(action==='decline'){
         if(!t.closeRequestedBy)throw Error('Keine Schließungs-Anfrage vorhanden.');
+        const previous=t.closeRequestedBy;
         t.closeRequestedBy=null;
-        await store.persist();await editTicket(guild,t);
+        try{await store.persist();}catch(err){t.closeRequestedBy=previous;throw err;}
+        await editTicket(guild,t);
       }else if(action==='release'){
         if(t.status!=='claimed')throw Error('Dieses Ticket ist nicht übernommen.');
         if(t.staffId!==actor&&actor!==guild.ownerId&&!member.permissions.has(PermissionFlagsBits.Administrator))throw Error('Nur Bearbeiter oder Administrator können die Übernahme freigeben.');
