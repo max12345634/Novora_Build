@@ -1,8 +1,10 @@
 # Vollautomatische Novora-Veröffentlichung
 
 Normale Bot-Releases benötigen weder einen Browser-Upload noch ein neues
-AppDeploy-Deployment. Das Control Center stellt dafür dauerhaft die geschützte
-Maschinen-API und den unveränderlichen Release-Speicher bereit.
+AppDeploy-Deployment. Signierte Artefakte werden atomar in einem getrennten
+GitHub-Release-Branch gespeichert. Das Control Center prüft Release- und
+Maschinensignatur, die widerrufbare Discord-Freigabe und alle SHA-256-Werte,
+bevor es den unveränderten Feed an den Bot ausliefert.
 
 ## Freigabekette
 
@@ -14,9 +16,10 @@ Maschinen-API und den unveränderlichen Release-Speicher bereit.
 4. `npm run release:auto -- <Version> <Changelog-Datei>` ausführen.
 
 Der Befehl führt die komplette Testsuite aus, baut ein Ed25519-signiertes
-Release, prüft Signatur, Pfade, Dateiformate und SHA-256, lädt jede Datei über
-eine kurzlebige releasegebundene Sitzung hoch, aktiviert den Feed atomar und
-lädt anschließend den Feed und sämtliche Dateien erneut herunter.
+Release, prüft Signatur, Pfade, Dateiformate und SHA-256, aktualisiert den
+geschützten Release-Branch mit einem atomaren Git-Commit und lädt anschließend
+den Feed und sämtliche Dateien sowohl direkt als auch über AppDeploy erneut
+herunter. GitHub und AppDeploy erhalten keinen privaten Schlüssel.
 
 Der private Release-Schlüssel und der private Publisher-Schlüssel dürfen nie in
 Git, ZIP-Dateien, Logs, Browserfelder oder Chatnachrichten gelangen. Ein Fehler
