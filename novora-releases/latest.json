@@ -1,0 +1,697 @@
+{
+  "schema": 1,
+  "version": "4.18.3",
+  "files": [
+    {
+      "path": "assets/audio/waiting-music.ogg",
+      "bytes": 128619,
+      "sha256": "2490fab587dbc6451c4af693a2ee9f59814bc6a779726553c97e35ca552a3ced",
+      "url": "/novora-releases/4.18.3/assets--audio--waiting-music.ogg.txt"
+    },
+    {
+      "path": "assets/audio/welcome-generic.ogg",
+      "bytes": 103295,
+      "sha256": "038f71926be770ccd969b75badd1a52e80e7340da480da1662da2514ed4d94e0",
+      "url": "/novora-releases/4.18.3/assets--audio--welcome-generic.ogg.txt"
+    },
+    {
+      "path": "assets/banners/novora-application-open.png",
+      "bytes": 30810,
+      "sha256": "2a1058562105e482e42cea42a321c76e9a0d0eba3ce05417387e10152f248e6a",
+      "url": "/novora-releases/4.18.3/assets--banners--novora-application-open.png.txt"
+    },
+    {
+      "path": "assets/banners/novora-faction-open.png",
+      "bytes": 36942,
+      "sha256": "a58ffb202a4d16e1a36a672b34cedd2d70ef570b0029e9d5b8266d71dc593688",
+      "url": "/novora-releases/4.18.3/assets--banners--novora-faction-open.png.txt"
+    },
+    {
+      "path": "assets/banners/novora-panel-applications.png",
+      "bytes": 29752,
+      "sha256": "7768ab8b46eece635cbe3bc76d7d6c6d939333ce785b85ec1b3f518cff900d96",
+      "url": "/novora-releases/4.18.3/assets--banners--novora-panel-applications.png.txt"
+    },
+    {
+      "path": "assets/banners/novora-panel-factions.png",
+      "bytes": 35593,
+      "sha256": "ffce2a17f260c8fd731af64bdd7a4ae5b3d0ecb96cd8f6ba61fea188f767e209",
+      "url": "/novora-releases/4.18.3/assets--banners--novora-panel-factions.png.txt"
+    },
+    {
+      "path": "assets/banners/novora-panel-partnerschaft.png",
+      "bytes": 49764,
+      "sha256": "eeb7fb02b7cf956a6f9d0c7bf6539a2100e3b07a15cd5999d78496835b39b0d2",
+      "url": "/novora-releases/4.18.3/assets--banners--novora-panel-partnerschaft.png.txt"
+    },
+    {
+      "path": "assets/banners/novora-panel-tickets.png",
+      "bytes": 33877,
+      "sha256": "09fa7b1d5ebd16338e8507a1298174c1a6724557e9a6590f0023908f572bc853",
+      "url": "/novora-releases/4.18.3/assets--banners--novora-panel-tickets.png.txt"
+    },
+    {
+      "path": "assets/banners/novora-panel-verify.png",
+      "bytes": 45486,
+      "sha256": "5cd4114c8b080b77bebbe49d4f589682b7ae852f1ef1d66c98d5fabd089a2f2a",
+      "url": "/novora-releases/4.18.3/assets--banners--novora-panel-verify.png.txt"
+    },
+    {
+      "path": "assets/banners/novora-panel-voice.png",
+      "bytes": 34653,
+      "sha256": "c36ff4e1759e80e5821f7ff06ac11cac12f0ff04408927c399af3b03c530d586",
+      "url": "/novora-releases/4.18.3/assets--banners--novora-panel-voice.png.txt"
+    },
+    {
+      "path": "assets/banners/novora-partnership-cancel.png",
+      "bytes": 27719,
+      "sha256": "da0cb15c9006c328c16fa240bb3cb01afb522c2446a6a28beb73f77543c29668",
+      "url": "/novora-releases/4.18.3/assets--banners--novora-partnership-cancel.png.txt"
+    },
+    {
+      "path": "assets/banners/novora-partnership-change.png",
+      "bytes": 29904,
+      "sha256": "4e1bb3a5686aed6ec08c5ff8d723fa7c953e3dfb641261c11c19e8112ea5bed4",
+      "url": "/novora-releases/4.18.3/assets--banners--novora-partnership-change.png.txt"
+    },
+    {
+      "path": "assets/banners/novora-partnership-open.png",
+      "bytes": 47399,
+      "sha256": "c0a02bb597f0da6aaa881d59462f8370efa6a20bd846bb588852687ebb124fff",
+      "url": "/novora-releases/4.18.3/assets--banners--novora-partnership-open.png.txt"
+    },
+    {
+      "path": "assets/banners/novora-ticket-open.png",
+      "bytes": 31400,
+      "sha256": "3411fc85c6a9482e9600e4de957705d07685ba67bc10e758a1939d5ed60a4063",
+      "url": "/novora-releases/4.18.3/assets--banners--novora-ticket-open.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_admin.png",
+      "bytes": 3119,
+      "sha256": "281a2aa5f94aa7d991adf6b1fee898abba178f4f65506a5f593add2631194c85",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_admin.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_alert.png",
+      "bytes": 3486,
+      "sha256": "7ce3686cc336b143f808f40dbc92252c9cf9215b2cdb796d6705717ee21fac6f",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_alert.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_application.png",
+      "bytes": 2140,
+      "sha256": "793b87e95590176093833ad3d8181c8283fa2d1488786741b751df8a4815d7db",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_application.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_approved.png",
+      "bytes": 4568,
+      "sha256": "d042411e7174b49342d88825c93b54a38cecbc5d4f8ff4e126ffe8344dfeabc5",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_approved.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_archive.png",
+      "bytes": 1064,
+      "sha256": "dc98d6e3c3626ab85c335db4e65d5d764dbba2ffec901ad896c1d689f0ce0146",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_archive.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_audit.png",
+      "bytes": 1175,
+      "sha256": "6dc285f7666e617d194b147db8c81db9cb285c8b238e7f9cad278c575acfc405",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_audit.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_badge.png",
+      "bytes": 6129,
+      "sha256": "36b802fd5f5efb8060971b9773402ea7322a01e8176410ce7ba2b84560a4c473",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_badge.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_channel.png",
+      "bytes": 2476,
+      "sha256": "db85966e0483b2a6c42febfaed35289a837ff6f211ba08343cf4014fcd6c7f64",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_channel.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_close.png",
+      "bytes": 4063,
+      "sha256": "7887b6425c03c4b549c972e611544925e8743349de9ac819131cecfb755ac764",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_close.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_create.png",
+      "bytes": 2338,
+      "sha256": "c2f82099ec13535b3a0cad2ca9eeae6450e1aae724a6b49b5fe0c25e1cdac7b5",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_create.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_critical.png",
+      "bytes": 2310,
+      "sha256": "4c73ef8f86202cdb007ecaa40f0cc89e62991af26cce0e9d6f1f89f0a88fccf5",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_critical.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_delete.png",
+      "bytes": 1789,
+      "sha256": "4d7d28a87769a5f4e4b4c848280758b928a6e2747a417f60802acd4d46d713db",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_delete.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_denied.png",
+      "bytes": 4134,
+      "sha256": "cdefaf8f9ba07fb72432ca14898a9f156395ca1818ee531d5f21cfa42836deb4",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_denied.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_edit.png",
+      "bytes": 1892,
+      "sha256": "28203c25291eac1673ebbb26c405f45a49b01a63640cde6ea13d17ac722ff431",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_edit.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_emergency.png",
+      "bytes": 2432,
+      "sha256": "41306cd3465414e4b898d32d2576827a42ac428db05b7136bfdfd4246d7044c3",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_emergency.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_error.png",
+      "bytes": 4386,
+      "sha256": "8ca609ca999f40b3085188002735eabfc68aaa6fcda7c2f4ab82e66e9d422830",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_error.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_faction.png",
+      "bytes": 4049,
+      "sha256": "68b7825b68dc2f791a223e1879ba20b196c27520e2269654b3521efad0b2a911",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_faction.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_forum.png",
+      "bytes": 1225,
+      "sha256": "b1255eecee0b0ed57c01e3f49ea7e0f05f9b508abaec0ccf75c344139a2a88da",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_forum.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_goodbye.png",
+      "bytes": 3396,
+      "sha256": "6351a7e436f4ebacebab9b0851396038259c02fc233f2a19d7a78f8021ac95d1",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_goodbye.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_illegal.png",
+      "bytes": 2956,
+      "sha256": "0f890b521898526046ecaf38d1229c5d7c0f910ead16edb765c9e0b871756720",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_illegal.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_info.png",
+      "bytes": 4112,
+      "sha256": "c4efed7d8df9355ed838ae7e6badcb5bd9df3f72012f0e5c652e4ff3584bab12",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_info.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_key.png",
+      "bytes": 3347,
+      "sha256": "7227b6a42c24088721f14e7c027cbf3083d0a0ef9bf9a9c7222c0c03683ded41",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_key.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_legal.png",
+      "bytes": 6023,
+      "sha256": "0bda31d20244de739e92ff2c384fa88aaa6a5bc4a19735b4589fae9fb2c4ba83",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_legal.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_lock.png",
+      "bytes": 2835,
+      "sha256": "1a417e0d55aa5c5968fa7201b6be18078bbfcc95a23a69d35b9ab2da801b1219",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_lock.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_members.png",
+      "bytes": 3806,
+      "sha256": "b150d112a19edcf9607c9a655ca9e142dea9ab8de5ea06bc21d69c12ea6b604f",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_members.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_message.png",
+      "bytes": 1121,
+      "sha256": "58cf22d15fd7ae6c676fde7ee2f0cbe0e4e0ed4b02fea0b504a126a77dc1c4fc",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_message.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_moderator.png",
+      "bytes": 2121,
+      "sha256": "b54dee47ccdd1dd6bdd119a001d7388a60233526282629ba075155cb3ddfe60a",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_moderator.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_mute.png",
+      "bytes": 3448,
+      "sha256": "d711d19c7bd83155f745f7c2c648bf7011c8f92aa5306756a1f5eb90393dc621",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_mute.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_open.png",
+      "bytes": 1666,
+      "sha256": "b102715d33d8ed827e60503f75918f56e4727da3624a28a805ce8cd54876373d",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_open.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_partner.png",
+      "bytes": 2967,
+      "sha256": "5f70f7398a444d2f58e8231e3a8c8ee37ec40899bf2e193cdd050f4bf62261c5",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_partner.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_partner_edit.png",
+      "bytes": 2231,
+      "sha256": "7296ba6f31501c8c7fed0c01537566f1ee61b78bbc1662157d8d04835ea2925e",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_partner_edit.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_partner_end.png",
+      "bytes": 1948,
+      "sha256": "573ca38209699cf3f145eaffd1050ede264681b85754e6999bd3cb35095c2084",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_partner_end.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_partner_large.png",
+      "bytes": 1700,
+      "sha256": "f19b781002e826713058d332921fcba1526b29c7ab4bf62369ab6320f2c9a4b7",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_partner_large.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_partner_medium.png",
+      "bytes": 2032,
+      "sha256": "543cc660fd5f2c5706c24a6b8c5471d1ebc634345f81cf90bd611355e619629b",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_partner_medium.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_partner_small.png",
+      "bytes": 2017,
+      "sha256": "eeffd7048ddb632dd3b22f286e72e5b09312489fa266b6ab164f776f97322839",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_partner_small.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_police.png",
+      "bytes": 4120,
+      "sha256": "2fca906bee57b32f4ed1efba6fac010fd0375f49fe47eee76f66c60954e9f187",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_police.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_privaterating.png",
+      "bytes": 1770,
+      "sha256": "431c7e4ea6bc6df2406e13c4a442cfbd79316db74e0b2373fc3b60cdd90939bd",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_privaterating.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_publicrating.png",
+      "bytes": 2373,
+      "sha256": "dce8357fba5d86582d3a1c21614904e0da80b75ed7a2eb3b57de58e90c35a4fd",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_publicrating.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_question.png",
+      "bytes": 2149,
+      "sha256": "ae3104d4fa038b8ceade8e07c28289b9cbad459b38fa09afd9526a7d63dac371",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_question.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_refresh.png",
+      "bytes": 3882,
+      "sha256": "1bab82681a9332744719f593dcfe830a526ebc4f6cb8d5a90b79d9528a2c3890",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_refresh.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_release.png",
+      "bytes": 3904,
+      "sha256": "0aea4c2bcfd801f3c281d881695f8c03452d9a2cf1adcb8789f4bf42524eec72",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_release.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_report.png",
+      "bytes": 687,
+      "sha256": "3ed9a5babc6d28bbaf17bc399bf6b7cfe5315c4afc7934e9702e25d9f67e1ca9",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_report.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_role.png",
+      "bytes": 2995,
+      "sha256": "f66477ae5498a9ef735d566e43fc26c70940ac41e4a97f6136d0913479009fee",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_role.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_roleplay.png",
+      "bytes": 3124,
+      "sha256": "1ca1ba7a806632579086d3a86d8ffb0c39607dd182a7c481458a69413a48beba",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_roleplay.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_rules.png",
+      "bytes": 665,
+      "sha256": "9e0a41ca373c33528afab50bfe57e3596c2b5dd717af5d9ed2d782ec2afb42fc",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_rules.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_saturn.png",
+      "bytes": 4822,
+      "sha256": "c970dd67526640ed83aae4815bd39f1b797d9bf7d4f2b0d4aa41a028ebeab594",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_saturn.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_search.png",
+      "bytes": 2770,
+      "sha256": "2f11eb125782d9a8cdac48fe970792f55afc4a5271263f727c3c81614741fc48",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_search.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_settings.png",
+      "bytes": 2821,
+      "sha256": "f54984491edc231f4c31beec7432f4d8b731b72d525e93ac495f1a14c2dbdc6e",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_settings.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_star.png",
+      "bytes": 2692,
+      "sha256": "00d247c5914962d2874193d41cfd800ce4a1121fc1e6e1274c237766f6296982",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_star.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_status.png",
+      "bytes": 5336,
+      "sha256": "4f282b361648451251e9ce47924ae998dbf3c56c68ea7eaac6bccf72f277e3a8",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_status.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_success.png",
+      "bytes": 4831,
+      "sha256": "f49ec7c4b36b27e062cce34ecd11bc6d8b4943322b98537231a9f94b54dc0207",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_success.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_support.png",
+      "bytes": 3154,
+      "sha256": "b4150afbd9ddd209923c9a9f58cfbedf4afb7a9e61025305a4946f7421b305f0",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_support.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_sync.png",
+      "bytes": 4150,
+      "sha256": "9e736b2d1018724fe82962fd67d0ee68c1df628c3420555916ba007a84dfafcb",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_sync.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_team.png",
+      "bytes": 810,
+      "sha256": "d0b7ba0f603bcd411f16cf880f0e32f67fae8fa797652a4b838e95f6eaa3a60c",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_team.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_technical.png",
+      "bytes": 2079,
+      "sha256": "7a04277f5503ab323a12498b43ebf014a5450243875611f4d0233dd159a35449",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_technical.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_transcript.png",
+      "bytes": 1125,
+      "sha256": "f440df9555419d033b09382357a02993bfc46484ecf7267dbd232644722dc9c7",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_transcript.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_unverified.png",
+      "bytes": 3625,
+      "sha256": "a5f5a3f4022a3ae13b88a2df761c35ac7c4e940bc366813172499858351aefb2",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_unverified.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_verify.png",
+      "bytes": 2976,
+      "sha256": "c3b1a4e71ea925089c096cbf9acaad603622b4efa3fe3e53df0795e1ceaf3b96",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_verify.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_warning.png",
+      "bytes": 4111,
+      "sha256": "6482e18bcda6cb43e2e4d9ef7eafc6f3bc6136b6b27ce18e7cf84160a8c291bd",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_warning.png.txt"
+    },
+    {
+      "path": "assets/emojis/nv_welcome.png",
+      "bytes": 3410,
+      "sha256": "0d3d3132f3d4ed319ba11764fa9868141c60056deb16d5bb44dddc2311e1e370",
+      "url": "/novora-releases/4.18.3/assets--emojis--nv_welcome.png.txt"
+    },
+    {
+      "path": "src/api.js",
+      "bytes": 1680,
+      "sha256": "a7ba570e97a87196d0ee0ab3484265adfee82f499d065eea5efed1b60fa77b02",
+      "url": "/novora-releases/4.18.3/src--api.js.txt"
+    },
+    {
+      "path": "src/audit-ledger.js",
+      "bytes": 8035,
+      "sha256": "418e5873df81972473507484a88f7a43c05668c6f06eefb5122280275848cce6",
+      "url": "/novora-releases/4.18.3/src--audit-ledger.js.txt"
+    },
+    {
+      "path": "src/bot-main.js",
+      "bytes": 64389,
+      "sha256": "9775f1cb96626367d97b3f331cb04b9af4779dd55fb836637a64db025d36774d",
+      "url": "/novora-releases/4.18.3/src--bot-main.js.txt"
+    },
+    {
+      "path": "src/branding.js",
+      "bytes": 1504,
+      "sha256": "aba9044dec247e36fb62318cd7fa1ce0e813a426bb06668caf8c85be5f3b0ab2",
+      "url": "/novora-releases/4.18.3/src--branding.js.txt"
+    },
+    {
+      "path": "src/bridge.js",
+      "bytes": 3551,
+      "sha256": "ec5de64fb9fa599dcf6c99a57e66dae0ebe8c1cc880b97fec95a306569bda6b0",
+      "url": "/novora-releases/4.18.3/src--bridge.js.txt"
+    },
+    {
+      "path": "src/changelog.js",
+      "bytes": 17685,
+      "sha256": "9ee27b87874fb5e7d3daba9e76e0c5caa272aed888b5281fcc31384d3a38edc0",
+      "url": "/novora-releases/4.18.3/src--changelog.js.txt"
+    },
+    {
+      "path": "src/community-suite.js",
+      "bytes": 31987,
+      "sha256": "eb8f3a1a073f761683b2277ff11824480adaa14a440ea66741bc78e690f1427a",
+      "url": "/novora-releases/4.18.3/src--community-suite.js.txt"
+    },
+    {
+      "path": "src/control.js",
+      "bytes": 3320,
+      "sha256": "97f174b26771953b8071805befb7fa72f4c5ec3b81522ff34b0cfdbaf421358e",
+      "url": "/novora-releases/4.18.3/src--control.js.txt"
+    },
+    {
+      "path": "src/dashboard-cases.js",
+      "bytes": 677,
+      "sha256": "058c56aa77212cff0cfa323d710f02416e528653e70ee34d284d9ae11ab4949d",
+      "url": "/novora-releases/4.18.3/src--dashboard-cases.js.txt"
+    },
+    {
+      "path": "src/emoji.js",
+      "bytes": 3291,
+      "sha256": "dd118877303fefa58c29d34d5329fdef1a41028c3104e2e124a55f1744339396",
+      "url": "/novora-releases/4.18.3/src--emoji.js.txt"
+    },
+    {
+      "path": "src/form-messages.js",
+      "bytes": 1224,
+      "sha256": "ca42f30d762002394bf4803d2dfdd0150b4c6d7a42bae1b06b7239c89d7d744b",
+      "url": "/novora-releases/4.18.3/src--form-messages.js.txt"
+    },
+    {
+      "path": "src/jobs.js",
+      "bytes": 1117,
+      "sha256": "5c46aff4324814b7830e6f5b7ec64758f02f08f4a12134aee723a10cd9937d34",
+      "url": "/novora-releases/4.18.3/src--jobs.js.txt"
+    },
+    {
+      "path": "src/log-emoji-assets.js",
+      "bytes": 14174,
+      "sha256": "28953d5c8e935151efceac8c9b631bbc1be1718948098f70f74a4f6818f388dd",
+      "url": "/novora-releases/4.18.3/src--log-emoji-assets.js.txt"
+    },
+    {
+      "path": "src/member-greetings.js",
+      "bytes": 2242,
+      "sha256": "10dbf8daf49c688b74734560aa74c1129022fc288fa94957470a97622e1bcd7e",
+      "url": "/novora-releases/4.18.3/src--member-greetings.js.txt"
+    },
+    {
+      "path": "src/message-flags.js",
+      "bytes": 690,
+      "sha256": "840aad41150024129492fb0852eef3fb432dbd3469668836339b5b9bcbba55d1",
+      "url": "/novora-releases/4.18.3/src--message-flags.js.txt"
+    },
+    {
+      "path": "src/messages.js",
+      "bytes": 1911,
+      "sha256": "981826429452afaa92df21a49e47171520b0380c0df5aeb49eb642b94cf9175c",
+      "url": "/novora-releases/4.18.3/src--messages.js.txt"
+    },
+    {
+      "path": "src/oauth.js",
+      "bytes": 5469,
+      "sha256": "235c540384e16331a8219a4b58a20ff04990ea1f2b36e99e91a00a87214204e6",
+      "url": "/novora-releases/4.18.3/src--oauth.js.txt"
+    },
+    {
+      "path": "src/owner-alerts.js",
+      "bytes": 5242,
+      "sha256": "1c136de143f07188787745a2ef361bbffb5e177b474f1f2299ce89b4a905a334",
+      "url": "/novora-releases/4.18.3/src--owner-alerts.js.txt"
+    },
+    {
+      "path": "src/panel-art.js",
+      "bytes": 1433,
+      "sha256": "55512c95cba7d77c71354ae6121bfbb096f0179f2771b8a080e4e0f85f1a1b58",
+      "url": "/novora-releases/4.18.3/src--panel-art.js.txt"
+    },
+    {
+      "path": "src/panel-sync.js",
+      "bytes": 4809,
+      "sha256": "2d3b808f18dc8c7eea41688948f0d234b0cff0a2d8770e457d13248a9dc20e01",
+      "url": "/novora-releases/4.18.3/src--panel-sync.js.txt"
+    },
+    {
+      "path": "src/partner-art-v35.js",
+      "bytes": 17443,
+      "sha256": "a7ca56b462fd27535bade5a5fd976116cda63d129b81fd33240406758b8db2b1",
+      "url": "/novora-releases/4.18.3/src--partner-art-v35.js.txt"
+    },
+    {
+      "path": "src/partner-art.js",
+      "bytes": 16937,
+      "sha256": "0bb95d1d28de88e1a9da9bb7884e15b216ef1b040f6d46aa0970a1e070bf4358",
+      "url": "/novora-releases/4.18.3/src--partner-art.js.txt"
+    },
+    {
+      "path": "src/partner-emojis.js",
+      "bytes": 2137,
+      "sha256": "cc1d771c475e70b7fb29b4809d388b57fe7c5cfc159fa3a6770838fdf2a96e56",
+      "url": "/novora-releases/4.18.3/src--partner-emojis.js.txt"
+    },
+    {
+      "path": "src/partnership-analysis.js",
+      "bytes": 3928,
+      "sha256": "14d03eb0bfde39adeb540b9cbdcf295acf1cd36335c45a23314b0019a2694965",
+      "url": "/novora-releases/4.18.3/src--partnership-analysis.js.txt"
+    },
+    {
+      "path": "src/partnerships.js",
+      "bytes": 52440,
+      "sha256": "828c58f4e6e10e16fcef7d5ec240fcd3edf9f1e5ef55842a5e2927325145d776",
+      "url": "/novora-releases/4.18.3/src--partnerships.js.txt"
+    },
+    {
+      "path": "src/roles.js",
+      "bytes": 8038,
+      "sha256": "528b0f373eec96b1185183e8559bf4fadd21592f02fd889b01fed313c32e6e87",
+      "url": "/novora-releases/4.18.3/src--roles.js.txt"
+    },
+    {
+      "path": "src/rp-suite.js",
+      "bytes": 5783,
+      "sha256": "393ff645d946ea8328c5f75620d93d51bfe9a060380ac08ab724ca58cb1b3a4b",
+      "url": "/novora-releases/4.18.3/src--rp-suite.js.txt"
+    },
+    {
+      "path": "src/security-center.js",
+      "bytes": 4295,
+      "sha256": "2e8e75ac3f7641fae75674cfd3f31fbf3b0e691178e4dad9f6870be290e60aea",
+      "url": "/novora-releases/4.18.3/src--security-center.js.txt"
+    },
+    {
+      "path": "src/setup-flow.js",
+      "bytes": 12796,
+      "sha256": "1715c41a4a086da6e460a6d0f5e27b50ec22c61bdcf8407212c7d56a3303201b",
+      "url": "/novora-releases/4.18.3/src--setup-flow.js.txt"
+    },
+    {
+      "path": "src/setup-menu.js",
+      "bytes": 414,
+      "sha256": "082b90e7e94a1bceddbfb5a0eba99c20a44fb039d110220b5c180f4f37c58c57",
+      "url": "/novora-releases/4.18.3/src--setup-menu.js.txt"
+    },
+    {
+      "path": "src/standard-suite.js",
+      "bytes": 9902,
+      "sha256": "399f65291c6517840c5585177d9dcb2af9bd6030d9fca1f008eabfc220b3de3a",
+      "url": "/novora-releases/4.18.3/src--standard-suite.js.txt"
+    },
+    {
+      "path": "src/store.js",
+      "bytes": 4419,
+      "sha256": "8bdf7f2f033937feb4f7d23c7bfbbac31954733bd95fadfbdad1a56580528bcf",
+      "url": "/novora-releases/4.18.3/src--store.js.txt"
+    },
+    {
+      "path": "src/support-log-panel.js",
+      "bytes": 2055,
+      "sha256": "77da203365e718749402dd72d30bf5a5da6827cbe1a18e4c21a492ec43af5100",
+      "url": "/novora-releases/4.18.3/src--support-log-panel.js.txt"
+    },
+    {
+      "path": "src/support-questions.js",
+      "bytes": 2376,
+      "sha256": "89ea6e2d41548ba4d061a29774963873a006b2d8b7ecaee7e6f2ca1244f9c9fb",
+      "url": "/novora-releases/4.18.3/src--support-questions.js.txt"
+    },
+    {
+      "path": "src/support-suite.js",
+      "bytes": 57241,
+      "sha256": "4d94db203254a0e3de07258a76e46841a8f128c635a92ef9485fff7ccc41307d",
+      "url": "/novora-releases/4.18.3/src--support-suite.js.txt"
+    },
+    {
+      "path": "src/ticket-archive.js",
+      "bytes": 8058,
+      "sha256": "d2fba25346eb6a82df5eea3c7962ebd6adb7b92a7857d2cf7f7514bf8efb33bb",
+      "url": "/novora-releases/4.18.3/src--ticket-archive.js.txt"
+    },
+    {
+      "path": "src/ui-v2.js",
+      "bytes": 3564,
+      "sha256": "22be541d6d1e1085174d49d5fed645a80749d63ddb16aac09c6e533f5777da1f",
+      "url": "/novora-releases/4.18.3/src--ui-v2.js.txt"
+    },
+    {
+      "path": "src/version-label.js",
+      "bytes": 35,
+      "sha256": "eef1ef25d07a77590ec015fd9218138f217e4f09371e70ca278aec8840a9d073",
+      "url": "/novora-releases/4.18.3/src--version-label.js.txt"
+    },
+    {
+      "path": "src/voice-audio.js",
+      "bytes": 6788,
+      "sha256": "d3c117311e4cc6b16aec1ad45140d29386dc0477b54a3f2a7d0762c31437389e",
+      "url": "/novora-releases/4.18.3/src--voice-audio.js.txt"
+    },
+    {
+      "path": "src/voice-cache.js",
+      "bytes": 195,
+      "sha256": "018796eb07bb2869163b1104bd0e1cd494fe5c2899265d1f83a531c75f1d1a29",
+      "url": "/novora-releases/4.18.3/src--voice-cache.js.txt"
+    },
+    {
+      "path": "src/website.js",
+      "bytes": 20580,
+      "sha256": "660523ba061b4aee4931148b6e181444a6a320355a928c04b5ecaab5d583235b",
+      "url": "/novora-releases/4.18.3/src--website.js.txt"
+    }
+  ],
+  "signature": "BjoPfwpnUPOSHdMj7noIMN7tbk3uG8MNM3zhgN5GCpEFgMXWqswJr/RafU0Gdi0Suv/D7FVMOpzkgUNP8aonAg=="
+}
