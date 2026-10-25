@@ -278,7 +278,7 @@ test('4.18.5: failed close-request persistence restores state and sends no notif
  await assert.rejects(mod.actionTicket(guild,USER,'a','request'),/storage unavailable/);
  assert.equal(state.supportTickets.a.closeRequestedBy,undefined);
  assert.equal(sent.length,0);
- assert.equal(state.audit.filter(x=>x.action==='support_ticket_request').length,0);
+ assert.equal((state.audit||[]).filter(x=>x.action==='support_ticket_request').length,0);
  store.persist=async()=>{};
  await mod.actionTicket(guild,USER,'a','request');
  assert.equal(state.supportTickets.a.closeRequestedBy,USER);
@@ -294,7 +294,7 @@ test('4.18.5: declining a close request rolls back on storage failure',async()=>
  store.persist=async()=>{throw Error('storage unavailable')};
  await assert.rejects(mod.actionTicket(guild,ADMIN,'a','decline'),/storage unavailable/);
  assert.equal(state.supportTickets.a.closeRequestedBy,USER);
- assert.equal(state.audit.filter(x=>x.action==='support_ticket_decline').length,0);
+ assert.equal((state.audit||[]).filter(x=>x.action==='support_ticket_decline').length,0);
 });
 test('4.18.5: only the requester can request closure and closed tickets reject requests',async()=>{
  const {mod,guild,state}=mk();
