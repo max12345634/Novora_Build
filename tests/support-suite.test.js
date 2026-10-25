@@ -249,3 +249,59 @@ test('4.18.4: ticket panel shows claim timestamp and clears it after release',as
  assert.equal(ticket.staffId,null);
  assert.equal(ticket.status,'open');
 });
+
+test('4.18.5: concurrent close requests persist and notify the complaint team exactly once',async()=>{
+ const {mod,guild,state,channels}=mk();
+ const channelId='888888888888888888',complaintsRole='999999999999999999',sent=[];
+ channels.set(channelId,{id:channelId,send:async payload=>{sent.push(payload);return {id:'111111111111111111'}}});
+ state.supportSettings[ID]={tickets:{teamRoleId:ROLE,complaintsRoleId:complaintsRole}};
+ state.supportTickets.a={id:'a',guildId:ID,channelId,userId:USER,kind:'report',status:'open'};
+ const results=await Promise.allSettled([
+  mod.actionTicket(guild,USER,'a','request'),
+  mod.actionTicket(guild,USER,'a','request')
+ ]);
+ assert.equal(results.filter(x=>x.status==='fulfilled').length,1);
+ assert.equal(results.filter(x=>x.status==='rejected').length,1);
+ assert.equal(state.supportTickets.a.closeRequestedBy,USER);
+ assert.equal(sent.length,1);
+ assert.deepEqual(sent[0].allowedMentions,{roles:[complaintsRole]});
+ assert.match(sent[0].content,new RegExp(complaintsRole));
+ assert.equal(state.audit.filter(x=>x.action==='support_ticket_request').length,1);
+});
+test('4.18.5: failed close-request persistence restores state and sends no notification',async()=>{
+ const {mod,guild,state,channels,store}=mk(),sent=[];
+ const channelId='888888888888888888';
+ channels.set(channelId,{id:channelId,send:async payload=>{sent.push(payload)}});
+ state.supportSettings[ID]={tickets:{teamRoleId:ROLE}};
+ state.supportTickets.a={id:'a',guildId:ID,channelId,userId:USER,kind:'question',status:'open'};
+ store.persist=async()=>{throw Error('storage unavailable')};
+ await assert.rejects(mod.actionTicket(guild,USER,'a','request'),/storage unavailable/);
+ assert.equal(state.supportTickets.a.closeRequestedBy,undefined);
+ assert.equal(sent.length,0);
+ assert.equal(state.audit.filter(x=>x.action==='support_ticket_request').length,0);
+ store.persist=async()=>{};
+ await mod.actionTicket(guild,USER,'a','request');
+ assert.equal(state.supportTickets.a.closeRequestedBy,USER);
+ assert.equal(sent.length,1);
+});
+test('4.18.5: declining a close request rolls back on storage failure',async()=>{
+ const {mod,guild,state,members,channels,store}=mk();
+ const channelId='888888888888888888';
+ channels.set(channelId,{id:channelId,send:async()=>({id:'111111111111111111'})});
+ state.supportSettings[ID]={tickets:{teamRoleId:ROLE}};
+ state.supportTickets.a={id:'a',guildId:ID,channelId,userId:USER,kind:'question',status:'open',closeRequestedBy:USER};
+ members.set(ADMIN,{id:ADMIN,permissions:{has:()=>true},roles:{cache:new Map()}});
+ store.persist=async()=>{throw Error('storage unavailable')};
+ await assert.rejects(mod.actionTicket(guild,ADMIN,'a','decline'),/storage unavailable/);
+ assert.equal(state.supportTickets.a.closeRequestedBy,USER);
+ assert.equal(state.audit.filter(x=>x.action==='support_ticket_decline').length,0);
+});
+test('4.18.5: only the requester can request closure and closed tickets reject requests',async()=>{
+ const {mod,guild,state}=mk();
+ state.supportSettings[ID]={tickets:{teamRoleId:ROLE}};
+ state.supportTickets.a={id:'a',guildId:ID,channelId:'888888888888888888',userId:USER,kind:'question',status:'open'};
+ await assert.rejects(mod.actionTicket(guild,ADMIN,'a','request'),/Nur die betroffene Person/);
+ state.supportTickets.a.status='closed';
+ await assert.rejects(mod.actionTicket(guild,USER,'a','request'),/bereits geschlossen/);
+ assert.equal(state.supportTickets.a.closeRequestedBy,undefined);
+});
