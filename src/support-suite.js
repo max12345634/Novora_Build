@@ -90,7 +90,8 @@ function ticketView(ticket,emojis={},guildName=""){
 • **Status:** ${status}
 • **Prüfung:** ${ticket.workflowStage||'Noch ausstehend'}
 • **Bearbeiter:** ${ticket.staffId?`<@${ticket.staffId}>`:'Noch niemand'}
-• **Erstellt:** ${ts(ticket.createdAt)}`
+• **Erstellt:** ${ts(ticket.createdAt)}
+• **Übernommen:** ${ticket.claimedAt?ts(ticket.claimedAt):'Noch nicht übernommen'}`
  ],banner:'novora-ticket-open.png',rows:ticketActions(ticket,emojis).map(r=>r.components),after:[
   '**Screenshots, Videos oder Dokumente:** Du kannst sie hier im privaten Chat mit **+** als Datei anhängen. Sie werden als Anhänge im Ticket-Transkript erfasst. Teile keine Passwörter oder Tokens.'
  ]});
